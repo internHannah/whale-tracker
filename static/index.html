@@ -373,11 +373,48 @@
 
       <!-- Whale transfers table -->
       <div class="card">
-        <div class="card-title" style="margin-bottom: 10px">
+        <div class="card-title" style="margin-bottom: 6px;">
           Recent Whale Transfers
           <span class="chip">ETH &ge; 100</span>
         </div>
-        <div id="table-loading" class="loading">Loading whale transfers…</div>
+  
+        <!-- Filters -->
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; font-size: 12px; color: #9ca3af;">
+          <div>
+            <span>Min amount (ETH): </span>
+            <input
+              id="filter-min-amount"
+              type="number"
+              value="100"
+              min="0"
+              step="10"
+              style="width: 80px; padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(55,65,81,0.9); background: rgba(15,23,42,0.9); color: #e5e7eb;"
+            />
+          </div>
+          <div>
+            <span>Pattern: </span>
+            <select
+              id="filter-pattern"
+              style="padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(55,65,81,0.9); background: rgba(15,23,42,0.9); color: #e5e7eb;"
+            >
+              <option value="all">All</option>
+              <option value="Accumulator-like">Accumulator-like</option>
+              <option value="Distributor-like">Distributor-like</option>
+              <option value="Balanced">Balanced</option>
+            </select>
+          </div>
+          <div>
+            <button
+              id="filter-apply"
+              style="padding: 4px 10px; border-radius: 999px; border: none; font-size: 12px; font-weight: 500; cursor: pointer; background: linear-gradient(135deg, #4b5563, #0ea5e9); color: white;"
+            >
+              Apply
+            </button>
+          </div>
+        </div>        
+        </div>
+  
+        <div id="table-loading" class="loading">Loading whale transfers…</div>  
         <div id="table-error" class="error" style="display: none"></div>
         <div style="overflow-x: auto">
           <table id="whale-table" style="display: none">
@@ -657,115 +694,150 @@
       }
 
       async function loadWhales() {
-        const loadingEl = document.getElementById("table-loading");
-        const tableEl = document.getElementById("whale-table");
-        const tbodyEl = document.getElementById("whale-tbody");
-        const errEl = document.getElementById("table-error");
+      const loadingEl = document.getElementById("table-loading");
+      const tableEl = document.getElementById("whale-table");
+      const tbodyEl = document.getElementById("whale-tbody");
+      const errEl = document.getElementById("table-error");
 
-        loadingEl.style.display = "block";
-        tableEl.style.display = "none";
-        errEl.style.display = "none";
-        tbodyEl.innerHTML = "";
+      const minAmountInput = document.getElementById("filter-min-amount");
+      const patternSelect = document.getElementById("filter-pattern");
 
-        try {
-          const res = await fetch("/alerts/latest");
-          if (!res.ok) {
-            throw new Error("HTTP " + res.status);
+      const minAmount = Number((minAmountInput && minAmountInput.value) || 100);
+      const patternFilter = (patternSelect && patternSelect.value) || "all";
+
+      loadingEl.style.display = "block";
+      loadingEl.textContent = "Loading whale transfers…";
+      tableEl.style.display = "none";
+      errEl.style.display = "none";
+      tbodyEl.innerHTML = "";
+
+      try {
+        // 👉 pass min_amount to the backend
+        const res = await fetch(
+          `/alerts/latest?limit=200&min_amount=${encodeURIComponent(minAmount)}`
+        );
+        if (!res.ok) {
+          throw new Error("HTTP " + res.status);
+        }
+
+        const data = await res.json();
+        const rows = data.transfers || [];
+
+        // store for drill-down + metrics
+        currentTransfers = rows;
+
+        const totalRows = rows.length;
+
+        // if provider returned nothing at all
+        if (totalRows === 0) {
+          loadingEl.textContent =
+            "No large ETH transfers returned by the provider right now.";
+          tableEl.style.display = "none";
+          updateMetricsCard?.();
+          selectWallet(null);
+          return;
+        }
+
+        // build stats once for snapshot (for pattern tags)
+        const walletStats = buildWalletStats(rows);
+
+        let shownRows = 0;
+
+        rows.forEach((t) => {
+          const pattern = classifyPatternForTransfer(t, walletStats);
+
+          // 🔎 client-side pattern filter
+          if (patternFilter !== "all" && pattern.label !== patternFilter) {
+            return; // skip this row
           }
-          const data = await res.json();
-          const rows = data.transfers || [];
-          currentTransfers = rows;
 
-          if (rows.length === 0) {
-            loadingEl.textContent = "No large ETH transfers found right now.";
-            selectWallet(null);
-            updateMetricsCard();
-            return;
+          const tr = document.createElement("tr");
+
+          const amountTd = document.createElement("td");
+          amountTd.className = "amount";
+          const amtNum = Number(t.amount || 0);
+          amountTd.textContent = amtNum.toFixed(4);
+          tr.appendChild(amountTd);
+
+          const tokenTd = document.createElement("td");
+          tokenTd.textContent = t.token_symbol || "ETH";
+          tr.appendChild(tokenTd);
+
+          const fromTd = document.createElement("td");
+          fromTd.className = "address";
+          if (t.from_address) {
+            const a = document.createElement("a");
+            a.href = "https://etherscan.io/address/" + t.from_address;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.className = "addr-link";
+            a.textContent = shortenAddress(t.from_address);
+            a.addEventListener("click", (e) => {
+              e.preventDefault(); // stay on page
+              selectWallet(t.from_address);
+            });
+            fromTd.appendChild(a);
           }
+          tr.appendChild(fromTd);
 
-          const walletStats = buildWalletStats(rows);
+          const toTd = document.createElement("td");
+          toTd.className = "address";
+          if (t.to_address) {
+            const a = document.createElement("a");
+            a.href = "https://etherscan.io/address/" + t.to_address;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.className = "addr-link";
+            a.textContent = shortenAddress(t.to_address);
+            a.addEventListener("click", (e) => {
+              e.preventDefault(); // stay on page
+              selectWallet(t.to_address);
+            });
+            toTd.appendChild(a);
+          }
+          tr.appendChild(toTd);
 
-          rows.forEach((t) => {
-            const tr = document.createElement("tr");
+          // pattern chip
+          const patternTd = document.createElement("td");
+          const chip = document.createElement("span");
+          chip.className = "chip";
+          chip.textContent = pattern.label;
+          chip.title = pattern.title;
+          patternTd.appendChild(chip);
+          tr.appendChild(patternTd);
 
-            const amountTd = document.createElement("td");
-            amountTd.className = "amount";
-            amountTd.textContent = t.amount.toFixed
-              ? t.amount.toFixed(4)
-              : t.amount;
-            tr.appendChild(amountTd);
+          const blockTd = document.createElement("td");
+          blockTd.textContent = t.block_number ?? "";
+          tr.appendChild(blockTd);
 
-            const tokenTd = document.createElement("td");
-            tokenTd.textContent = t.token_symbol || "ETH";
-            tr.appendChild(tokenTd);
+          const obsTd = document.createElement("td");
+          obsTd.textContent = formatIso(t.observed_at);
+          tr.appendChild(obsTd);
 
-            const fromTd = document.createElement("td");
-            fromTd.className = "address";
-            if (t.from_address) {
-              const a = document.createElement("a");
-              a.href = "https://etherscan.io/address/" + t.from_address;
-              a.target = "_blank";
-              a.rel = "noopener noreferrer";
-              a.className = "addr-link";
-              a.textContent = shortenAddress(t.from_address);
-              a.addEventListener("click", (e) => {
-                e.preventDefault();
-                selectWallet(t.from_address);
-              });
-              fromTd.appendChild(a);
-            }
-            tr.appendChild(fromTd);
+          tbodyEl.appendChild(tr);
+          shownRows += 1;
+        });
 
-            const toTd = document.createElement("td");
-            toTd.className = "address";
-            if (t.to_address) {
-              const a = document.createElement("a");
-              a.href = "https://etherscan.io/address/" + t.to_address;
-              a.target = "_blank";
-              a.rel = "noopener noreferrer";
-              a.className = "addr-link";
-              a.textContent = shortenAddress(t.to_address);
-              a.addEventListener("click", (e) => {
-                e.preventDefault();
-                selectWallet(t.to_address);
-              });
-              toTd.appendChild(a);
-            }
-            tr.appendChild(toTd);
-
-            // 🔹 NEW: pattern cell
-            const patternTd = document.createElement("td");
-            const pattern = classifyPatternForTransfer(t, walletStats);
-            const chip = document.createElement("span");
-            chip.className = "chip";
-            chip.textContent = pattern.label;
-            chip.title = pattern.title;
-            patternTd.appendChild(chip);
-            tr.appendChild(patternTd);
-
-            const blockTd = document.createElement("td");
-            blockTd.textContent = t.block_number ?? "";
-            tr.appendChild(blockTd);
-
-            const obsTd = document.createElement("td");
-            obsTd.textContent = formatIso(t.observed_at);
-            tr.appendChild(obsTd);
-
-            tbodyEl.appendChild(tr);
-          });
-
+        if (shownRows === 0) {
+          // 🔔 filters too strict, but provider had data
+          loadingEl.textContent = "No transfers match the current filters.";
+          tableEl.style.display = "none";
+        } else {
           loadingEl.style.display = "none";
           tableEl.style.display = "table";
-          updateMetricsCard();
-          selectedWallet = null;
-          selectWallet(null);
-        } catch (err) {
-          console.error(err);
-          loadingEl.style.display = "none";
-          errEl.textContent = "Could not load whale transfers.";
-          errEl.style.display = "block";
         }
+
+        // update metrics + reset drill-down for new snapshot
+        updateMetricsCard?.();
+        selectedWallet = null;
+        selectWallet(null);
+      } catch (err) {
+        console.error(err);
+        loadingEl.style.display = "none";
+        errEl.textContent = "Could not load whale transfers.";
+        errEl.style.display = "block";
       }
+    }
 
       async function sendChatQuestion() {
         const inputEl = document.getElementById("chat-input");
@@ -907,6 +979,13 @@
       }
         loadSummary();
         loadWhales();
+        const applyBtn = document.getElementById("filter-apply");
+
+        if (applyBtn) {
+            applyBtn.addEventListener("click", () => {
+            loadWhales();
+            });
+        }
         const chatButton = document.getElementById("chat-submit");
         const chatInput = document.getElementById("chat-input");
 

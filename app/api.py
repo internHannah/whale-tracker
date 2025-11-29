@@ -10,15 +10,15 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
 @router.get("/latest", response_model=WhaleTransferList)
-def latest_alerts(limit: int = 20, min_usd_value: float = 500_000):
+def latest_alerts(limit: int = 200,  min_amount: float = 100.0):
     """
     Return whale transfers from the service layer.
     Right now the service still returns fake data,
     but later it will call a real provider.
     """
 
-    transfers = whale_service.fetch_whale_transfers_from_provider(
-        min_usd_value=min_usd_value,
+    transfers = whale_service.fetch_whales(
+        min_amount=min_amount,
         limit=limit,
     )
 
@@ -43,7 +43,7 @@ def alerts_summary(limit: int = 20, min_amount_eth: float = 100.0):
 
     # 1. Get recent whale transfers from the same service you already use
     transfers = whale_service.fetch_whale_transfers_from_provider(
-        min_usd_value=0,   # we are not really using USD filter right now
+        min_amount=0,   # we are not really using USD filter right now
         limit=limit,
     )
 
@@ -107,7 +107,7 @@ def alerts_chat(payload: ChatRequest, limit: int = 20):
 
     # 1. Get the same whale transfers we use for summary
     transfers = whale_service.fetch_whale_transfers_from_provider(
-        min_usd_value=0,
+        min_amount=0,
         limit=limit,
     )
 
