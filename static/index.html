@@ -6,11 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
       body {
-        font-family:
-          system-ui,
-          -apple-system,
-          BlinkMacSystemFont,
-          "Segoe UI",
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
           sans-serif;
         margin: 0;
         padding: 0;
@@ -19,13 +15,13 @@
       }
 
       .page {
-        max-width: 960px;
+        max-width: 1280px;
         margin: 0 auto;
         padding: 24px 16px 48px;
       }
 
       h1 {
-        font-size: 28px;
+        font-size: 32px;
         margin-bottom: 4px;
       }
 
@@ -109,8 +105,7 @@
       }
 
       .address {
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
           "Liberation Mono", "Courier New", monospace;
         font-size: 12px;
       }
@@ -144,6 +139,8 @@
         font-size: 13px;
         color: #9ca3af;
       }
+
+      /* 2-column layout */
       .layout {
         display: flex;
         gap: 18px;
@@ -151,78 +148,15 @@
       }
 
       .main-column {
-        flex: 2.3; /* wider: ~70% */
+        flex: 2.3; /* wide */
         min-width: 0;
       }
 
       .sidebar {
-        flex: 1; /* narrower: ~30% */
-        min-width: 260px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
+        flex: 1;
+        min-width: 280px;
       }
 
-            /* Floating chat widget */
-            .chat-widget {
-        position: fixed;
-        right: 20px;
-        bottom: 20px;
-        z-index: 50;
-      }
-
-      .chat-fab {
-        padding: 8px 14px;
-        border-radius: 999px;
-        border: none;
-        font-size: 13px;
-        font-weight: 500;
-        cursor: pointer;
-        background: linear-gradient(135deg, #4f46e5, #06b6d4);
-        color: white;
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.9);
-      }
-
-      .chat-panel {
-        position: fixed;
-        right: 20px;
-        bottom: 60px;
-        width: 320px;
-        max-height: 60vh;
-        background: rgba(15, 23, 42, 0.98);
-        border-radius: 16px;
-        border: 1px solid rgba(55, 65, 81, 0.9);
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
-        display: none;
-        padding: 12px 14px;
-        font-size: 13px;
-        color: #e5e7eb;
-        display: none;
-        flex-direction: column;
-        gap: 8px;
-      }
-
-      .chat-panel-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 4px;
-      }
-
-      .chat-panel-title {
-        font-size: 14px;
-        font-weight: 600;
-      }
-
-      .chat-panel-close {
-        border: none;
-        background: transparent;
-        color: #9ca3af;
-        font-size: 16px;
-        cursor: pointer;
-      }
-
-      /* Make it stack on small screens */
       @media (max-width: 900px) {
         .layout {
           flex-direction: column;
@@ -230,6 +164,103 @@
         .sidebar {
           width: 100%;
         }
+      }
+
+      /* Tabs for AI Whale Intelligence panel */
+      .tab-header {
+        display: inline-flex;
+        background: rgba(15, 23, 42, 0.9);
+        border-radius: 999px;
+        padding: 2px;
+        margin-left: auto;
+      }
+
+      .tab-btn {
+        border: none;
+        background: transparent;
+        color: #9ca3af;
+        font-size: 11px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+
+      .tab-btn.active {
+        background: linear-gradient(135deg, #4f46e5, #0ea5e9);
+        color: white;
+      }
+
+      .tab-panel {
+        display: none;
+        margin-top: 8px;
+      }
+
+      .tab-panel.active {
+        display: block;
+      }
+
+      /* Pagination */
+      #pagination {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #9ca3af;
+        display: none;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 8px;
+      }
+
+      #pagination button {
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(75, 85, 99, 0.9);
+        background: rgba(15, 23, 42, 0.9);
+        color: #e5e7eb;
+        cursor: pointer;
+      }
+
+      /* Floating chat widget */
+      #chat-widget-bubble {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #4f46e5, #06b6d4);
+        color: white;
+        font-size: 12px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+        z-index: 40;
+      }
+
+      #chat-widget-panel {
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        width: 340px;
+        max-width: calc(100% - 40px);
+        z-index: 50;
+        display: none;
+      }
+
+      #chat-widget-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+      }
+
+      #chat-close-btn {
+        border: none;
+        background: transparent;
+        color: #9ca3af;
+        cursor: pointer;
+        font-size: 16px;
+        line-height: 1;
       }
     </style>
   </head>
@@ -242,12 +273,13 @@
       </div>
 
       <div class="layout">
-        <!-- ================= LEFT: DATA ================= -->
+        <!-- MAIN COLUMN: TABLE + WALLET DRILL-DOWN -->
         <div class="main-column">
+          <!-- Whale transfers card -->
           <div class="card">
             <div class="card-title" style="margin-bottom: 6px">
               Recent Whale Transfers
-              <span class="chip">ETH &ge; 100</span>
+              <span class="chip">ETH ≥ 100</span>
             </div>
 
             <!-- Filters -->
@@ -259,6 +291,7 @@
                 margin-bottom: 8px;
                 font-size: 12px;
                 color: #9ca3af;
+                align-items: center;
               "
             >
               <div>
@@ -297,31 +330,27 @@
                   <option value="Balanced">Balanced</option>
                 </select>
               </div>
-              <div>
-                <button
-                  id="filter-apply"
-                  style="
-                    padding: 4px 10px;
-                    border-radius: 999px;
-                    border: none;
-                    font-size: 12px;
-                    font-weight: 500;
-                    cursor: pointer;
-                    background: linear-gradient(135deg, #4b5563, #0ea5e9);
-                    color: white;
-                  "
-                >
-                  Apply
-                </button>
-              </div>
+              <button
+                id="filter-apply"
+                style="
+                  padding: 4px 12px;
+                  border-radius: 999px;
+                  border: none;
+                  font-size: 12px;
+                  font-weight: 500;
+                  cursor: pointer;
+                  background: linear-gradient(135deg, #4b5563, #0ea5e9);
+                  color: white;
+                "
+              >
+                Apply
+              </button>
             </div>
 
-            <!-- Loading / error / table / pagination LIVE INSIDE CARD -->
             <div id="table-loading" class="loading">
               Loading whale transfers…
             </div>
             <div id="table-error" class="error" style="display: none"></div>
-
             <div style="overflow-x: auto">
               <table id="whale-table" style="display: none">
                 <thead>
@@ -338,140 +367,15 @@
                 <tbody id="whale-tbody"></tbody>
               </table>
             </div>
-
             <!-- Pagination -->
-            <div
-              id="pagination"
-              style="
-                display: none;
-                margin-top: 8px;
-                font-size: 12px;
-                color: #9ca3af;
-                justify-content: flex-end;
-                align-items: center;
-                gap: 8px;
-              "
-            >
-              <button
-                id="page-prev"
-                style="
-                  padding: 3px 8px;
-                  border-radius: 999px;
-                  border: 1px solid rgba(75, 85, 99, 0.9);
-                  background: rgba(15, 23, 42, 0.9);
-                  color: #e5e7eb;
-                  cursor: pointer;
-                "
-              >
-                Prev
-              </button>
+            <div id="pagination">
+              <button id="page-prev">Prev</button>
               <span id="page-info">Page 1 / 1</span>
-              <button
-                id="page-next"
-                style="
-                  padding: 3px 8px;
-                  border-radius: 999px;
-                  border: 1px solid rgba(75, 85, 99, 0.9);
-                  background: rgba(15, 23, 42, 0.9);
-                  color: #e5e7eb;
-                  cursor: pointer;
-                "
-              >
-                Next
-              </button>
+              <button id="page-next">Next</button>
             </div>
           </div>
-        </div>
 
-        <!-- ================= RIGHT: INTELLIGENCE SIDEBAR ================= -->
-        <div class="sidebar">
-          <!-- AI summary card -->
-          <div class="card" id="summary-card">
-            <div class="card-title">
-              Market Snapshot
-              <span class="badge">AI analysis</span>
-            </div>
-            <div id="summary-loading" class="loading">Loading summary…</div>
-            <div
-              id="summary-text"
-              class="summary-text"
-              style="display: none"
-            ></div>
-            <div
-              id="summary-meta"
-              class="summary-meta"
-              style="display: none"
-            ></div>
-            <div id="summary-error" class="error" style="display: none"></div>
-          </div>
-
-          <!-- Flow Intelligence metrics -->
-          <div class="card" id="metrics-card">
-            <div class="card-title" style="margin-bottom: 8px">
-              Flow Intelligence
-              <span class="badge">Snapshot metrics</span>
-            </div>
-            <div id="metrics-loading" class="loading">
-              Waiting for whale data…
-            </div>
-
-            <div
-              id="metrics-body"
-              style="display: none; font-size: 13px; color: #d1d5db"
-            >
-              <div
-                style="
-                  display: flex;
-                  flex-wrap: wrap;
-                  gap: 12px;
-                  margin-bottom: 8px;
-                "
-              >
-                <div>
-                  <div style="font-size: 11px; color: #9ca3af">
-                    Total volume
-                  </div>
-                  <div id="metric-volume" style="font-weight: 600">–</div>
-                </div>
-                <div>
-                  <div style="font-size: 11px; color: #9ca3af">
-                    Largest transfer
-                  </div>
-                  <div id="metric-largest" style="font-weight: 600">–</div>
-                </div>
-                <div>
-                  <div style="font-size: 11px; color: #9ca3af">
-                    Unique wallets
-                  </div>
-                  <div id="metric-unique-wallets" style="font-weight: 600">
-                    –
-                  </div>
-                </div>
-                <div>
-                  <div style="font-size: 11px; color: #9ca3af">
-                    Concentration
-                  </div>
-                  <div id="metric-concentration" style="font-weight: 600">
-                    –
-                  </div>
-                </div>
-              </div>
-
-              <div style="margin-top: 4px">
-                <div style="font-size: 11px; color: #9ca3af">
-                  Top wallets in this snapshot
-                </div>
-                <div
-                  id="metric-top-wallets"
-                  style="font-size: 12px; margin-top: 4px"
-                ></div>
-              </div>
-            </div>
-
-            <div id="metrics-error" class="error" style="display: none"></div>
-          </div>
-
-          <!-- Wallet Drill-down -->
+          <!-- Wallet drill-down BELOW table -->
           <div class="card" id="wallet-card">
             <div class="card-title" style="margin-bottom: 8px">
               Wallet Drill-down
@@ -490,9 +394,7 @@
                 full on-chain history).
               </div>
               <div style="margin-bottom: 8px">
-                <div style="font-size: 11px; color: #9ca3af">
-                  Selected wallet
-                </div>
+                <div style="font-size: 11px; color: #9ca3af">Selected wallet</div>
                 <div
                   id="wallet-address"
                   class="address"
@@ -508,9 +410,7 @@
                 "
               >
                 <div>
-                  <div style="font-size: 11px; color: #9ca3af">
-                    Total inflow
-                  </div>
+                  <div style="font-size: 11px; color: #9ca3af">Total inflow</div>
                   <div id="wallet-inflow" style="font-weight: 600">–</div>
                 </div>
                 <div>
@@ -542,129 +442,246 @@
             </div>
             <div id="wallet-error" class="error" style="display: none"></div>
           </div>
+        </div>
 
-          <!-- Research Note -->
-          <div class="card" id="report-card">
-            <div class="card-title" style="margin-bottom: 8px">
-              Research Note
-              <span class="badge">Snapshot report</span>
+        <!-- SIDEBAR: AI WHALE INTELLIGENCE PANEL -->
+        <div class="sidebar">
+          <div class="card" id="intel-card">
+            <div class="card-title">
+              AI Whale Intelligence
+              <span class="badge">Analytics</span>
+              <div class="tab-header">
+                <button
+                  class="tab-btn active"
+                  data-tab="overview"
+                  id="tab-btn-overview"
+                >
+                  Overview
+                </button>
+                <button class="tab-btn" data-tab="flow" id="tab-btn-flow">
+                  Flow
+                </button>
+                <button class="tab-btn" data-tab="report" id="tab-btn-report">
+                  Report
+                </button>
+              </div>
             </div>
-            <div style="margin-bottom: 8px; font-size: 12px; color: #9ca3af">
-              Generates a structured note you could share with a PM or in a
-              research channel, based on the current whale snapshot and AI
-              summary.
-            </div>
-            <button
-              id="report-generate"
-              style="
-                padding: 6px 14px;
-                border-radius: 999px;
-                border: none;
-                font-size: 13px;
-                font-weight: 500;
-                cursor: pointer;
-                background: linear-gradient(135deg, #4b5563, #0ea5e9);
-                color: white;
-                margin-bottom: 10px;
-                box-shadow: 0 6px 20px rgba(15, 23, 42, 0.7);
-              "
-            >
-              Generate snapshot note
-            </button>
-            <span id="report-status" class="loading" style="display: none"
-              >Building note…</span
-            >
 
-            <div
-              id="report-body"
-              style="
-                display: none;
-                margin-top: 10px;
-                padding: 10px 12px;
-                border-radius: 12px;
-                background: rgba(15, 23, 42, 0.9);
-                font-size: 13px;
-                line-height: 1.5;
-                color: #e5e7eb;
-                white-space: pre-wrap;
-              "
-            ></div>
+            <!-- Tab: Overview (uses summary/LLM) -->
+            <div class="tab-panel active" id="tab-overview">
+              <div id="summary-loading" class="loading">
+                Loading summary…
+              </div>
+              <div
+                id="summary-text"
+                class="summary-text"
+                style="display: none"
+              ></div>
+              <div
+                id="summary-meta"
+                class="summary-meta"
+                style="display: none"
+              ></div>
+              <div
+                id="summary-error"
+                class="error"
+                style="display: none"
+              ></div>
+            </div>
+
+            <!-- Tab: Flow Intelligence (metrics) -->
+            <div class="tab-panel" id="tab-flow">
+              <div id="metrics-loading" class="loading">
+                Waiting for whale data…
+              </div>
+              <div
+                id="metrics-body"
+                style="display: none; font-size: 13px; color: #d1d5db"
+              >
+                <div
+                  style="
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 12px;
+                    margin-bottom: 8px;
+                  "
+                >
+                  <div>
+                    <div style="font-size: 11px; color: #9ca3af">
+                      Total volume
+                    </div>
+                    <div id="metric-volume" style="font-weight: 600">–</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 11px; color: #9ca3af">
+                      Largest transfer
+                    </div>
+                    <div id="metric-largest" style="font-weight: 600">–</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 11px; color: #9ca3af">
+                      Unique wallets
+                    </div>
+                    <div
+                      id="metric-unique-wallets"
+                      style="font-weight: 600"
+                    >
+                      –
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-size: 11px; color: #9ca3af">
+                      Concentration
+                    </div>
+                    <div id="metric-concentration" style="font-weight: 600">
+                      –
+                    </div>
+                  </div>
+                </div>
+
+                <div style="margin-top: 4px">
+                  <div style="font-size: 11px; color: #9ca3af">
+                    Top wallets in this snapshot
+                  </div>
+                  <div
+                    id="metric-top-wallets"
+                    style="font-size: 12px; margin-top: 4px"
+                  ></div>
+                </div>
+              </div>
+              <div
+                id="metrics-error"
+                class="error"
+                style="display: none"
+              ></div>
+            </div>
+
+            <!-- Tab: Research Report -->
+            <div class="tab-panel" id="tab-report">
+              <div
+                style="margin-bottom: 8px; font-size: 12px; color: #9ca3af"
+              >
+                Generates a structured note you could share with a PM or in a
+                research channel, based on the current whale snapshot and AI
+                summary.
+              </div>
+              <button
+                id="report-generate"
+                style="
+                  padding: 6px 14px;
+                  border-radius: 999px;
+                  border: none;
+                  font-size: 13px;
+                  font-weight: 500;
+                  cursor: pointer;
+                  background: linear-gradient(135deg, #4b5563, #0ea5e9);
+                  color: white;
+                  margin-bottom: 10px;
+                  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.7);
+                "
+              >
+                Generate snapshot note
+              </button>
+              <span
+                id="report-status"
+                class="loading"
+                style="display: none"
+                >Building note…</span
+              >
+
+              <div
+                id="report-body"
+                style="
+                  display: none;
+                  margin-top: 10px;
+                  padding: 10px 12px;
+                  border-radius: 12px;
+                  background: rgba(15, 23, 42, 0.9);
+                  font-size: 13px;
+                  line-height: 1.5;
+                  color: #e5e7eb;
+                  white-space: pre-wrap;
+                "
+              ></div>
+            </div>
           </div>
         </div>
       </div>
     </div>
-        <!-- Floating Ask AI widget -->
-        <div class="chat-widget">
-            <button class="chat-fab" id="chat-toggle">
-              💬 Ask AI about these flows
-            </button>
-      
-            <div class="chat-panel" id="chat-panel">
-              <div class="chat-panel-header">
-                <div class="chat-panel-title">Ask AI about these flows</div>
-                <button class="chat-panel-close" id="chat-close">&times;</button>
-              </div>
-              <div style="font-size: 12px; color: #9ca3af; margin-bottom: 4px;">
-                Ask things like: “Is this whale accumulating?” or
-                “Does this look like exchange flow?”
-              </div>
-      
-              <textarea
-                id="chat-input"
-                rows="3"
-                placeholder="Type your question about these whale transfers…"
-                style="
-                  resize: vertical;
-                  padding: 8px 10px;
-                  border-radius: 8px;
-                  border: 1px solid rgba(55, 65, 81, 0.9);
-                  background: rgba(15, 23, 42, 0.9);
-                  color: #e5e7eb;
-                  font-size: 13px;
-                  font-family: inherit;
-                "
-              ></textarea>
-      
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <button
-                  id="chat-submit"
-                  style="
-                    padding: 6px 14px;
-                    border-radius: 999px;
-                    border: none;
-                    font-size: 13px;
-                    font-weight: 500;
-                    cursor: pointer;
-                    background: linear-gradient(135deg, #4f46e5, #06b6d4);
-                    color: white;
-                    box-shadow: 0 8px 25px rgba(15, 23, 42, 0.7);
-                  "
-                >
-                  Ask AI
-                </button>
-                <span id="chat-status" class="loading" style="display: none;">
-                  Thinking…
-                </span>
-              </div>
-      
-              <div
-                id="chat-answer"
-                class="summary-text"
-                style="
-                  display: none;
-                  border-top: 1px solid rgba(55, 65, 81, 0.7);
-                  padding-top: 8px;
-                "
-              ></div>
-              <div id="chat-error" class="error" style="display: none;"></div>
-            </div>
-          </div>      
+
+    <!-- Floating Ask-AI widget -->
+    <div id="chat-widget-panel" class="card">
+      <div id="chat-widget-header">
+        <div class="card-title" style="margin-bottom: 0">
+          Ask AI about these flows
+          <span class="badge">Q&amp;A</span>
+        </div>
+        <button id="chat-close-btn" aria-label="Close chat">×</button>
+      </div>
+      <div style="margin-bottom: 8px; font-size: 12px; color: #9ca3af">
+        Ask questions like: “Why are there so many transfers from this wallet?”
+        or “Does this look like exchange activity or internal treasury moves?”
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <textarea
+          id="chat-input"
+          rows="3"
+          placeholder="Type your question about these whale transfers…"
+          style="
+            resize: vertical;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(55, 65, 81, 0.9);
+            background: rgba(15, 23, 42, 0.9);
+            color: #e5e7eb;
+            font-size: 13px;
+            font-family: inherit;
+          "
+        ></textarea>
+        <div style="display: flex; align-items: center; gap: 10px">
+          <button
+            id="chat-submit"
+            style="
+              padding: 6px 14px;
+              border-radius: 999px;
+              border: none;
+              font-size: 13px;
+              font-weight: 500;
+              cursor: pointer;
+              background: linear-gradient(135deg, #4f46e5, #06b6d4);
+              color: white;
+              box-shadow: 0 8px 25px rgba(15, 23, 42, 0.7);
+            "
+          >
+            Ask AI
+          </button>
+          <span id="chat-status" class="loading" style="display: none"
+            >Thinking…</span
+          >
+        </div>
+        <div
+          id="chat-answer"
+          class="summary-text"
+          style="
+            display: none;
+            border-top: 1px solid rgba(55, 65, 81, 0.7);
+            padding-top: 8px;
+          "
+        ></div>
+        <div id="chat-error" class="error" style="display: none"></div>
+      </div>
+    </div>
+
+    <div id="chat-widget-bubble">
+      💬 Ask AI about these flows
+    </div>
+
     <script>
       let currentTransfers = [];
       let selectedWallet = null;
       let currentWalletStats = null;
       let currentPage = 1;
-      const PAGE_SIZE = 20;
+      const PAGE_SIZE = 10;
 
       function shortenAddress(addr) {
         if (!addr || addr.length < 10) return addr || "";
@@ -673,10 +690,41 @@
 
       function formatIso(iso) {
         if (!iso) return "";
-        // basic trimming: "2025-11-27T00:18:28.376000Z" -> "2025-11-27 00:18:28"
         return iso.replace("T", " ").replace("Z", "").split(".")[0];
       }
 
+      /* ---------- AI SUMMARY ---------- */
+      async function loadSummary() {
+        const loadingEl = document.getElementById("summary-loading");
+        const textEl = document.getElementById("summary-text");
+        const metaEl = document.getElementById("summary-meta");
+        const errEl = document.getElementById("summary-error");
+
+        loadingEl.style.display = "block";
+        textEl.style.display = "none";
+        metaEl.style.display = "none";
+        errEl.style.display = "none";
+
+        try {
+          const res = await fetch("/alerts/summary");
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const data = await res.json();
+          textEl.textContent = data.summary || "No summary available.";
+          metaEl.textContent = `Based on ${
+            data.transfer_count ?? 0
+          } recent transfers.`;
+          loadingEl.style.display = "none";
+          textEl.style.display = "block";
+          metaEl.style.display = "block";
+        } catch (err) {
+          console.error(err);
+          loadingEl.style.display = "none";
+          errEl.textContent = "Could not load AI summary.";
+          errEl.style.display = "block";
+        }
+      }
+
+      /* ---------- FLOW INTELLIGENCE METRICS ---------- */
       function updateMetricsCard() {
         const loadingEl = document.getElementById("metrics-loading");
         const bodyEl = document.getElementById("metrics-body");
@@ -688,7 +736,7 @@
         const concEl = document.getElementById("metric-concentration");
         const topListEl = document.getElementById("metric-top-wallets");
 
-        if (!loadingEl) return; // safety if card not present
+        if (!loadingEl) return;
 
         errEl.style.display = "none";
 
@@ -701,10 +749,8 @@
         loadingEl.style.display = "none";
         bodyEl.style.display = "block";
 
-        // ---- compute stats ----
         let totalVolume = 0;
         let largest = 0;
-
         const walletVolumes = new Map();
         const walletSet = new Set();
 
@@ -729,15 +775,12 @@
           }
         });
 
-        // sort wallets by volume desc
         const sortedWallets = Array.from(walletVolumes.entries()).sort(
           (a, b) => b[1] - a[1],
         );
-
         const top3 = sortedWallets.slice(0, 3);
         const topVol = top3.length > 0 ? top3[0][1] : 0;
 
-        // ---- write metrics ----
         volEl.textContent = totalVolume.toFixed(2) + " ETH";
         largestEl.textContent = largest.toFixed(2) + " ETH";
         uniqEl.textContent = walletSet.size.toString();
@@ -749,26 +792,29 @@
           else if (pct >= 35) concLabel = "Moderately concentrated";
           else concLabel = "Distributed";
 
-          concEl.textContent = `${concLabel} (top wallet ≈ ${pct.toFixed(1)}% of volume)`;
+          concEl.textContent = `${concLabel} (top wallet ≈ ${pct.toFixed(
+            1,
+          )}% of volume)`;
         } else {
           concEl.textContent = "Not enough data.";
         }
 
-        // top 3 wallet list
         if (top3.length === 0) {
           topListEl.textContent = "No wallets found.";
         } else {
           topListEl.innerHTML = "";
-          top3.forEach(([addr, vol]) => {
+          top3.forEach(([addr, vol], idx) => {
             const div = document.createElement("div");
-            div.textContent = `${shortenAddress(addr)} – ${vol.toFixed(2)} ETH`;
+            div.textContent = `${idx + 1}. ${shortenAddress(
+              addr,
+            )} – ${vol.toFixed(2)} ETH`;
             topListEl.appendChild(div);
           });
         }
       }
 
+      /* ---------- RESEARCH NOTE BUILDER ---------- */
       function buildSnapshotReport() {
-        // We’ll pull metrics from the DOM + currentTransfers + summary text
         const summaryTextEl = document.getElementById("summary-text");
         const volumeEl = document.getElementById("metric-volume");
         const largestEl = document.getElementById("metric-largest");
@@ -789,7 +835,6 @@
         const isoDate = now.toISOString().split("T")[0];
         const timeStr = now.toISOString().split("T")[1].split(".")[0] + " UTC";
 
-        // Build top wallets section (reuse Flow Intelligence logic)
         const walletVolumes = new Map();
         (currentTransfers || []).forEach((t) => {
           const amt = Number(t.amount || 0);
@@ -817,7 +862,9 @@
           topWalletLines = top3
             .map(
               ([addr, vol], idx) =>
-                `${idx + 1}. ${shortenAddress(addr)} – ${vol.toFixed(2)} ETH`,
+                `${idx + 1}. ${shortenAddress(
+                  addr,
+                )} – ${vol.toFixed(2)} ETH`,
             )
             .join("\n");
         }
@@ -848,40 +895,9 @@
         return reportLines.join("\n");
       }
 
-      async function loadSummary() {
-        const loadingEl = document.getElementById("summary-loading");
-        const textEl = document.getElementById("summary-text");
-        const metaEl = document.getElementById("summary-meta");
-        const errEl = document.getElementById("summary-error");
-
-        loadingEl.style.display = "block";
-        textEl.style.display = "none";
-        metaEl.style.display = "none";
-        errEl.style.display = "none";
-
-        try {
-          const res = await fetch("/alerts/summary");
-          if (!res.ok) {
-            throw new Error("HTTP " + res.status);
-          }
-          const data = await res.json();
-          textEl.textContent = data.summary || "No summary available.";
-          metaEl.textContent = `Based on ${data.transfer_count ?? 0} recent transfers.`;
-          loadingEl.style.display = "none";
-          textEl.style.display = "block";
-          metaEl.style.display = "block";
-        } catch (err) {
-          console.error(err);
-          loadingEl.style.display = "none";
-          errEl.textContent = "Could not load AI summary.";
-          errEl.style.display = "block";
-        }
-      }
-
+      /* ---------- WALLET STATS / PATTERNS ---------- */
       function buildWalletStats(transfers) {
-        // returns { [address]: { inflow, outflow } }
         const stats = {};
-
         transfers.forEach((t) => {
           const amt = Number(t.amount || 0);
           if (!amt) return;
@@ -897,7 +913,6 @@
             stats[t.from_address].outflow += amt;
           }
         });
-
         return stats;
       }
 
@@ -905,14 +920,9 @@
         const fromStats = t.from_address ? walletStats[t.from_address] : null;
         const toStats = t.to_address ? walletStats[t.to_address] : null;
 
-        // default
         let label = "Balanced";
         let title =
           "No strong accumulation / distribution pattern in this snapshot.";
-
-        // simple heuristics based on net flows:
-        // - if to-wallet is strong net receiver => accumulator-like
-        // - if from-wallet is strong net sender => distributor-like
 
         if (toStats && toStats.inflow > toStats.outflow * 1.5) {
           label = "Accumulator-like";
@@ -925,19 +935,20 @@
         return { label, title };
       }
 
+      /* ---------- LOAD WHALES + TABLE + PAGINATION ---------- */
       async function loadWhales() {
         const loadingEl = document.getElementById("table-loading");
         const tableEl = document.getElementById("whale-table");
         const tbodyEl = document.getElementById("whale-tbody");
         const errEl = document.getElementById("table-error");
-        const paginationEl = document.getElementById("pagination");
 
         const minAmountInput = document.getElementById("filter-min-amount");
         const minAmount = Number(
           (minAmountInput && minAmountInput.value) || 100,
         );
 
-        // reset UI
+        const paginationEl = document.getElementById("pagination");
+
         loadingEl.style.display = "block";
         loadingEl.textContent = "Loading whale transfers…";
         tableEl.style.display = "none";
@@ -946,37 +957,33 @@
         if (paginationEl) paginationEl.style.display = "none";
 
         try {
-          // ask backend for up to 200 rows
-          const res = await fetch(
-            `/alerts/latest?limit=200&min_amount=${encodeURIComponent(minAmount)}`,
-          );
-          if (!res.ok) {
-            throw new Error("HTTP " + res.status);
-          }
-
+          // backend just returns up to 200 transfers; we filter client-side
+          const res = await fetch(`/alerts/latest?limit=200`);
+          if (!res.ok) throw new Error("HTTP " + res.status);
           const data = await res.json();
-          const rows = data.transfers || [];
+          const allRows = data.transfers || [];
 
-          currentTransfers = rows;
+          // client-side min amount filter
+          const filteredByAmount = allRows.filter(
+            (t) => Number(t.amount || 0) >= minAmount,
+          );
 
-          if (rows.length === 0) {
+          currentTransfers = filteredByAmount;
+
+          if (currentTransfers.length === 0) {
             loadingEl.textContent =
-              "No large ETH transfers returned by the provider right now.";
-            updateMetricsCard?.();
+              "No large ETH transfers match the current filters.";
+            updateMetricsCard();
             selectWallet(null);
             return;
           }
 
-          // build stats once for snapshot
-          currentWalletStats = buildWalletStats(rows);
+          currentWalletStats = buildWalletStats(currentTransfers);
           currentPage = 1;
-
           loadingEl.style.display = "none";
-          updateMetricsCard?.();
-          selectedWallet = null;
-          selectWallet(null);
 
-          // render first page
+          updateMetricsCard();
+          selectWallet(null);
           renderWhaleTable();
         } catch (err) {
           console.error(err);
@@ -1009,7 +1016,6 @@
 
         const patternFilter = (patternSelect && patternSelect.value) || "all";
 
-        // enrich with pattern labels
         const enriched = currentTransfers.map((t) => {
           const pattern = classifyPatternForTransfer(
             t,
@@ -1018,7 +1024,6 @@
           return { transfer: t, pattern };
         });
 
-        // apply pattern filter
         const filtered = enriched.filter((row) => {
           if (patternFilter === "all") return true;
           return row.pattern.label === patternFilter;
@@ -1032,7 +1037,6 @@
           return;
         }
 
-        // pagination math
         const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
         if (currentPage > totalPages) currentPage = totalPages;
         if (currentPage < 1) currentPage = 1;
@@ -1040,7 +1044,6 @@
         const start = (currentPage - 1) * PAGE_SIZE;
         const pageItems = filtered.slice(start, start + PAGE_SIZE);
 
-        // build rows for this page
         pageItems.forEach(({ transfer: t, pattern }) => {
           const tr = document.createElement("tr");
 
@@ -1110,7 +1113,6 @@
         loadingEl.style.display = "none";
         tableEl.style.display = "table";
 
-        // update pagination UI
         if (paginationEl && pageInfoEl && prevBtn && nextBtn) {
           paginationEl.style.display = "flex";
           pageInfoEl.textContent = `Page ${currentPage} / ${totalPages}`;
@@ -1122,50 +1124,7 @@
         }
       }
 
-      async function sendChatQuestion() {
-        const inputEl = document.getElementById("chat-input");
-        const statusEl = document.getElementById("chat-status");
-        const answerEl = document.getElementById("chat-answer");
-        const errEl = document.getElementById("chat-error");
-
-        const question = (inputEl.value || "").trim();
-        if (!question) {
-          errEl.textContent = "Please type a question first.";
-          errEl.style.display = "block";
-          answerEl.style.display = "none";
-          return;
-        }
-
-        // reset states
-        errEl.style.display = "none";
-        answerEl.style.display = "none";
-        statusEl.style.display = "inline";
-
-        try {
-          const res = await fetch("/alerts/chat?limit=20", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ question }),
-          });
-
-          if (!res.ok) {
-            throw new Error("HTTP " + res.status);
-          }
-
-          const data = await res.json();
-          answerEl.textContent = data.answer || "No answer returned.";
-          answerEl.style.display = "block";
-        } catch (err) {
-          console.error(err);
-          errEl.textContent = "Could not get an answer from AI.";
-          errEl.style.display = "block";
-        } finally {
-          statusEl.style.display = "none";
-        }
-      }
-
+      /* ---------- WALLET DRILL-DOWN ---------- */
       function selectWallet(address) {
         const emptyEl = document.getElementById("wallet-empty");
         const bodyEl = document.getElementById("wallet-body");
@@ -1197,6 +1156,7 @@
         let inflow = 0;
         let outflow = 0;
         let count = 0;
+
         currentTransfers.forEach((t) => {
           const amt = Number(t.amount || 0);
           if (t.to_address === address) {
@@ -1211,6 +1171,7 @@
 
         emptyEl.style.display = "none";
         bodyEl.style.display = "block";
+
         addrEl.innerHTML = "";
         const link = document.createElement("a");
         link.href = "https://etherscan.io/address/" + address;
@@ -1229,7 +1190,6 @@
 
         txCountEl.textContent = count.toString();
 
-        // simple heuristic role label
         let role = "Balanced activity / internal routing";
         if (inflow > outflow * 1.2) {
           role = "Net receiver (accumulator) in this snapshot";
@@ -1240,83 +1200,87 @@
         roleEl.textContent = role;
       }
 
-      // Load both on page load
+      /* ---------- CHAT / Q&A ---------- */
+      async function sendChatQuestion() {
+        const inputEl = document.getElementById("chat-input");
+        const statusEl = document.getElementById("chat-status");
+        const answerEl = document.getElementById("chat-answer");
+        const errEl = document.getElementById("chat-error");
+
+        const question = (inputEl.value || "").trim();
+        if (!question) {
+          errEl.textContent = "Please type a question first.";
+          errEl.style.display = "block";
+          answerEl.style.display = "none";
+          return;
+        }
+
+        errEl.style.display = "none";
+        answerEl.style.display = "none";
+        statusEl.style.display = "inline";
+
+        try {
+          const res = await fetch("/alerts/chat?limit=20", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question }),
+          });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const data = await res.json();
+          answerEl.textContent = data.answer || "No answer returned.";
+          answerEl.style.display = "block";
+        } catch (err) {
+          console.error(err);
+          errEl.textContent = "Could not get an answer from AI.";
+          errEl.style.display = "block";
+        } finally {
+          statusEl.style.display = "none";
+        }
+      }
+
+      /* ---------- TABS ---------- */
+      function setActiveTab(tabName) {
+        const panels = document.querySelectorAll(".tab-panel");
+        const buttons = document.querySelectorAll(".tab-btn");
+
+        panels.forEach((p) => {
+          p.classList.toggle("active", p.id === "tab-" + tabName);
+        });
+        buttons.forEach((b) => {
+          b.classList.toggle("active", b.dataset.tab === tabName);
+        });
+      }
+
+      /* ---------- INIT ---------- */
       window.addEventListener("load", () => {
-        const reportButton = document.getElementById("report-generate");
-        const reportStatus = document.getElementById("report-status");
-        const reportBody = document.getElementById("report-body");
+        loadSummary();
+        loadWhales();
+
         const applyBtn = document.getElementById("filter-apply");
         const minAmountInput = document.getElementById("filter-min-amount");
         const patternSelect = document.getElementById("filter-pattern");
         const prevBtn = document.getElementById("page-prev");
         const nextBtn = document.getElementById("page-next");
-        const chatButton = document.getElementById("chat-submit");
-        const chatInput = document.getElementById("chat-input");
-        const chatToggle = document.getElementById("chat-toggle");
-        const chatPanel = document.getElementById("chat-panel");
-        const chatClose = document.getElementById("chat-close");
 
-        if (chatToggle && chatPanel) {
-          chatToggle.addEventListener("click", () => {
-            const isOpen = chatPanel.style.display === "flex";
-            if (isOpen) {
-              chatPanel.style.display = "none";
-            } else {
-              chatPanel.style.display = "flex";
-            }
-          });
-        }
-
-        if (chatClose && chatPanel) {
-          chatClose.addEventListener("click", () => {
-            chatPanel.style.display = "none";
-          });
-        }
-
-        if (reportButton && reportBody && reportStatus) {
-          reportButton.addEventListener("click", () => {
-            // simple UX: show "building", then populate
-            reportStatus.style.display = "inline";
-            reportBody.style.display = "none";
-
-            // no async needed; everything is local
-            const text = buildSnapshotReport();
-            reportBody.textContent = text;
-
-            reportStatus.style.display = "none";
-            reportBody.style.display = "block";
-          });
-        }
-        loadSummary();
-        loadWhales();
         if (applyBtn) {
           applyBtn.addEventListener("click", () => {
             loadWhales();
           });
         }
-
-        if (applyBtn) {
-          applyBtn.addEventListener("click", () => {
-            loadWhales(); // refetch from backend
-          });
-        }
-
         if (minAmountInput) {
           minAmountInput.addEventListener("keydown", (e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              loadWhales(); // new min amount => new snapshot
+              loadWhales();
             }
           });
         }
-
         if (patternSelect) {
           patternSelect.addEventListener("change", () => {
-            currentPage = 1; // reset to first page
-            renderWhaleTable(); // no refetch needed; just re-slice
+            currentPage = 1;
+            renderWhaleTable();
           });
         }
-
         if (prevBtn) {
           prevBtn.addEventListener("click", () => {
             if (currentPage > 1) {
@@ -1325,7 +1289,6 @@
             }
           });
         }
-
         if (nextBtn) {
           nextBtn.addEventListener("click", () => {
             currentPage += 1;
@@ -1333,10 +1296,52 @@
           });
         }
 
+        // Research note button
+        const reportButton = document.getElementById("report-generate");
+        const reportStatus = document.getElementById("report-status");
+        const reportBody = document.getElementById("report-body");
+        if (reportButton && reportBody && reportStatus) {
+          reportButton.addEventListener("click", () => {
+            reportStatus.style.display = "inline";
+            reportBody.style.display = "none";
+            const text = buildSnapshotReport();
+            reportBody.textContent = text;
+            reportStatus.style.display = "none";
+            reportBody.style.display = "block";
+          });
+        }
+
+        // Tabs
+        document
+          .getElementById("tab-btn-overview")
+          .addEventListener("click", () => setActiveTab("overview"));
+        document
+          .getElementById("tab-btn-flow")
+          .addEventListener("click", () => setActiveTab("flow"));
+        document
+          .getElementById("tab-btn-report")
+          .addEventListener("click", () => setActiveTab("report"));
+
+        // Chat widget
+        const chatBubble = document.getElementById("chat-widget-bubble");
+        const chatPanel = document.getElementById("chat-widget-panel");
+        const chatClose = document.getElementById("chat-close-btn");
+        const chatButton = document.getElementById("chat-submit");
+        const chatInput = document.getElementById("chat-input");
+
+        if (chatBubble && chatPanel && chatClose) {
+          chatBubble.addEventListener("click", () => {
+            chatPanel.style.display = "block";
+            chatBubble.style.display = "none";
+          });
+          chatClose.addEventListener("click", () => {
+            chatPanel.style.display = "none";
+            chatBubble.style.display = "flex";
+          });
+        }
         if (chatButton) {
           chatButton.addEventListener("click", sendChatQuestion);
         }
-
         if (chatInput) {
           chatInput.addEventListener("keydown", (e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
