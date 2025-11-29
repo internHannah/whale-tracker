@@ -432,12 +432,58 @@
             <tbody id="whale-tbody"></tbody>
           </table>
         </div>
+              <!-- Pagination -->
+      <div
+      id="pagination"
+      style="
+        display: none;
+        margin-top: 8px;
+        font-size: 12px;
+        color: #9ca3af;
+        display: none;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 8px;
+      "
+    >
+      <button
+        id="page-prev"
+        style="
+          padding: 3px 8px;
+          border-radius: 999px;
+          border: 1px solid rgba(75,85,99,0.9);
+          background: rgba(15,23,42,0.9);
+          color: #e5e7eb;
+          cursor: pointer;
+        "
+      >
+        Prev
+      </button>
+      <span id="page-info">Page 1 / 1</span>
+      <button
+        id="page-next"
+        style="
+          padding: 3px 8px;
+          border-radius: 999px;
+          border: 1px solid rgba(75,85,99,0.9);
+          background: rgba(15,23,42,0.9);
+          color: #e5e7eb;
+          cursor: pointer;
+        "
+      >
+        Next
+      </button>
+    </div>
       </div>
     </div>
 
     <script>
       let currentTransfers = [];
       let selectedWallet = null;
+        let currentWalletStats = null;
+        let currentPage = 1;
+        const PAGE_SIZE = 20;
+
       function shortenAddress(addr) {
         if (!addr || addr.length < 10) return addr || "";
         return addr.slice(0, 6) + "..." + addr.slice(-4);
@@ -698,21 +744,21 @@
       const tableEl = document.getElementById("whale-table");
       const tbodyEl = document.getElementById("whale-tbody");
       const errEl = document.getElementById("table-error");
+      const paginationEl = document.getElementById("pagination");
 
       const minAmountInput = document.getElementById("filter-min-amount");
-      const patternSelect = document.getElementById("filter-pattern");
-
       const minAmount = Number((minAmountInput && minAmountInput.value) || 100);
-      const patternFilter = (patternSelect && patternSelect.value) || "all";
 
+      // reset UI
       loadingEl.style.display = "block";
       loadingEl.textContent = "Loading whale transfers…";
       tableEl.style.display = "none";
-      errEl.style.display = "none";
       tbodyEl.innerHTML = "";
+      errEl.style.display = "none";
+      if (paginationEl) paginationEl.style.display = "none";
 
       try {
-        // 👉 pass min_amount to the backend
+        // ask backend for up to 200 rows
         const res = await fetch(
           `/alerts/latest?limit=200&min_amount=${encodeURIComponent(minAmount)}`
         );
@@ -723,114 +769,27 @@
         const data = await res.json();
         const rows = data.transfers || [];
 
-        // store for drill-down + metrics
         currentTransfers = rows;
 
-        const totalRows = rows.length;
-
-        // if provider returned nothing at all
-        if (totalRows === 0) {
+        if (rows.length === 0) {
           loadingEl.textContent =
             "No large ETH transfers returned by the provider right now.";
-          tableEl.style.display = "none";
           updateMetricsCard?.();
           selectWallet(null);
           return;
         }
 
-        // build stats once for snapshot (for pattern tags)
-        const walletStats = buildWalletStats(rows);
+        // build stats once for snapshot
+        currentWalletStats = buildWalletStats(rows);
+        currentPage = 1;
 
-        let shownRows = 0;
-
-        rows.forEach((t) => {
-          const pattern = classifyPatternForTransfer(t, walletStats);
-
-          // 🔎 client-side pattern filter
-          if (patternFilter !== "all" && pattern.label !== patternFilter) {
-            return; // skip this row
-          }
-
-          const tr = document.createElement("tr");
-
-          const amountTd = document.createElement("td");
-          amountTd.className = "amount";
-          const amtNum = Number(t.amount || 0);
-          amountTd.textContent = amtNum.toFixed(4);
-          tr.appendChild(amountTd);
-
-          const tokenTd = document.createElement("td");
-          tokenTd.textContent = t.token_symbol || "ETH";
-          tr.appendChild(tokenTd);
-
-          const fromTd = document.createElement("td");
-          fromTd.className = "address";
-          if (t.from_address) {
-            const a = document.createElement("a");
-            a.href = "https://etherscan.io/address/" + t.from_address;
-            a.target = "_blank";
-            a.rel = "noopener noreferrer";
-            a.className = "addr-link";
-            a.textContent = shortenAddress(t.from_address);
-            a.addEventListener("click", (e) => {
-              e.preventDefault(); // stay on page
-              selectWallet(t.from_address);
-            });
-            fromTd.appendChild(a);
-          }
-          tr.appendChild(fromTd);
-
-          const toTd = document.createElement("td");
-          toTd.className = "address";
-          if (t.to_address) {
-            const a = document.createElement("a");
-            a.href = "https://etherscan.io/address/" + t.to_address;
-            a.target = "_blank";
-            a.rel = "noopener noreferrer";
-            a.className = "addr-link";
-            a.textContent = shortenAddress(t.to_address);
-            a.addEventListener("click", (e) => {
-              e.preventDefault(); // stay on page
-              selectWallet(t.to_address);
-            });
-            toTd.appendChild(a);
-          }
-          tr.appendChild(toTd);
-
-          // pattern chip
-          const patternTd = document.createElement("td");
-          const chip = document.createElement("span");
-          chip.className = "chip";
-          chip.textContent = pattern.label;
-          chip.title = pattern.title;
-          patternTd.appendChild(chip);
-          tr.appendChild(patternTd);
-
-          const blockTd = document.createElement("td");
-          blockTd.textContent = t.block_number ?? "";
-          tr.appendChild(blockTd);
-
-          const obsTd = document.createElement("td");
-          obsTd.textContent = formatIso(t.observed_at);
-          tr.appendChild(obsTd);
-
-          tbodyEl.appendChild(tr);
-          shownRows += 1;
-        });
-
-        if (shownRows === 0) {
-          // 🔔 filters too strict, but provider had data
-          loadingEl.textContent = "No transfers match the current filters.";
-          tableEl.style.display = "none";
-        } else {
-          loadingEl.style.display = "none";
-          tableEl.style.display = "table";
-        }
-
-        // update metrics + reset drill-down for new snapshot
+        loadingEl.style.display = "none";
         updateMetricsCard?.();
         selectedWallet = null;
         selectWallet(null);
+
+        // render first page
+        renderWhaleTable();
       } catch (err) {
         console.error(err);
         loadingEl.style.display = "none";
@@ -838,6 +797,140 @@
         errEl.style.display = "block";
       }
     }
+
+    function renderWhaleTable() {
+      const tableEl = document.getElementById("whale-table");
+      const tbodyEl = document.getElementById("whale-tbody");
+      const loadingEl = document.getElementById("table-loading");
+      const errEl = document.getElementById("table-error");
+      const patternSelect = document.getElementById("filter-pattern");
+
+      const paginationEl = document.getElementById("pagination");
+      const pageInfoEl = document.getElementById("page-info");
+      const prevBtn = document.getElementById("page-prev");
+      const nextBtn = document.getElementById("page-next");
+
+      tbodyEl.innerHTML = "";
+      errEl.style.display = "none";
+
+      if (!currentTransfers || currentTransfers.length === 0) {
+        tableEl.style.display = "none";
+        if (paginationEl) paginationEl.style.display = "none";
+        return;
+      }
+
+      const patternFilter = (patternSelect && patternSelect.value) || "all";
+
+      // enrich with pattern labels
+      const enriched = currentTransfers.map((t) => {
+        const pattern = classifyPatternForTransfer(t, currentWalletStats || {});
+        return { transfer: t, pattern };
+      });
+
+      // apply pattern filter
+      const filtered = enriched.filter((row) => {
+        if (patternFilter === "all") return true;
+        return row.pattern.label === patternFilter;
+      });
+
+      if (filtered.length === 0) {
+        tableEl.style.display = "none";
+        loadingEl.style.display = "block";
+        loadingEl.textContent = "No transfers match the current filters.";
+        if (paginationEl) paginationEl.style.display = "none";
+        return;
+      }
+
+      // pagination math
+      const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+
+      const start = (currentPage - 1) * PAGE_SIZE;
+      const pageItems = filtered.slice(start, start + PAGE_SIZE);
+
+      // build rows for this page
+      pageItems.forEach(({ transfer: t, pattern }) => {
+        const tr = document.createElement("tr");
+
+        const amtTd = document.createElement("td");
+        amtTd.className = "amount";
+        const amtNum = Number(t.amount || 0);
+        amtTd.textContent = amtNum.toFixed(4);
+        tr.appendChild(amtTd);
+
+        const tokenTd = document.createElement("td");
+        tokenTd.textContent = t.token_symbol || "ETH";
+        tr.appendChild(tokenTd);
+
+        const fromTd = document.createElement("td");
+        fromTd.className = "address";
+        if (t.from_address) {
+          const a = document.createElement("a");
+          a.href = "https://etherscan.io/address/" + t.from_address;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.className = "addr-link";
+          a.textContent = shortenAddress(t.from_address);
+          a.addEventListener("click", (e) => {
+            e.preventDefault();
+            selectWallet(t.from_address);
+          });
+          fromTd.appendChild(a);
+        }
+        tr.appendChild(fromTd);
+
+        const toTd = document.createElement("td");
+        toTd.className = "address";
+        if (t.to_address) {
+          const a = document.createElement("a");
+          a.href = "https://etherscan.io/address/" + t.to_address;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.className = "addr-link";
+          a.textContent = shortenAddress(t.to_address);
+          a.addEventListener("click", (e) => {
+            e.preventDefault();
+            selectWallet(t.to_address);
+          });
+          toTd.appendChild(a);
+        }
+        tr.appendChild(toTd);
+
+        const patternTd = document.createElement("td");
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = pattern.label;
+        chip.title = pattern.title;
+        patternTd.appendChild(chip);
+        tr.appendChild(patternTd);
+
+        const blockTd = document.createElement("td");
+        blockTd.textContent = t.block_number ?? "";
+        tr.appendChild(blockTd);
+
+        const obsTd = document.createElement("td");
+        obsTd.textContent = formatIso(t.observed_at);
+        tr.appendChild(obsTd);
+
+        tbodyEl.appendChild(tr);
+      });
+
+      loadingEl.style.display = "none";
+      tableEl.style.display = "table";
+
+      // update pagination UI
+      if (paginationEl && pageInfoEl && prevBtn && nextBtn) {
+        paginationEl.style.display = "flex";
+        pageInfoEl.textContent = `Page ${currentPage} / ${totalPages}`;
+
+        prevBtn.disabled = currentPage <= 1;
+        nextBtn.disabled = currentPage >= totalPages;
+        prevBtn.style.opacity = prevBtn.disabled ? 0.5 : 1;
+        nextBtn.style.opacity = nextBtn.disabled ? 0.5 : 1;
+      }
+    }
+
 
       async function sendChatQuestion() {
         const inputEl = document.getElementById("chat-input");
@@ -962,6 +1055,13 @@
         const reportButton = document.getElementById("report-generate");
       const reportStatus = document.getElementById("report-status");
       const reportBody = document.getElementById("report-body");
+      const applyBtn = document.getElementById("filter-apply");
+      const minAmountInput = document.getElementById("filter-min-amount");
+      const patternSelect = document.getElementById("filter-pattern");
+      const prevBtn = document.getElementById("page-prev");
+      const nextBtn = document.getElementById("page-next");
+      const chatButton = document.getElementById("chat-submit");
+        const chatInput = document.getElementById("chat-input");
 
       if (reportButton && reportBody && reportStatus) {
         reportButton.addEventListener("click", () => {
@@ -979,15 +1079,49 @@
       }
         loadSummary();
         loadWhales();
-        const applyBtn = document.getElementById("filter-apply");
-
         if (applyBtn) {
             applyBtn.addEventListener("click", () => {
             loadWhales();
             });
         }
-        const chatButton = document.getElementById("chat-submit");
-        const chatInput = document.getElementById("chat-input");
+
+        if (applyBtn) {
+        applyBtn.addEventListener("click", () => {
+          loadWhales();            // refetch from backend
+        });
+      }
+
+      if (minAmountInput) {
+        minAmountInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            loadWhales();          // new min amount => new snapshot
+          }
+        });
+      }
+
+      if (patternSelect) {
+        patternSelect.addEventListener("change", () => {
+          currentPage = 1;         // reset to first page
+          renderWhaleTable();      // no refetch needed; just re-slice
+        });
+      }
+
+      if (prevBtn) {
+        prevBtn.addEventListener("click", () => {
+          if (currentPage > 1) {
+            currentPage -= 1;
+            renderWhaleTable();
+          }
+        });
+      }
+
+      if (nextBtn) {
+        nextBtn.addEventListener("click", () => {
+          currentPage += 1;      
+          renderWhaleTable();
+        });
+      }
 
         if (chatButton) {
           chatButton.addEventListener("click", sendChatQuestion);
