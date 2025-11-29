@@ -475,7 +475,102 @@
                 </button>
               </div>
             </div>
-
+            <div class="card" id="intelligence-card">
+                <!-- Header row: title + tabs on the left, download menu on the right -->
+                <div
+                  style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 12px;
+                    margin-bottom: 8px;
+                  "
+                >
+                  <div>
+                    <div class="card-title" style="margin-bottom: 4px;">
+                      AI Whale Intelligence
+              
+                  <!-- 🔽 Download dropdown -->
+                  <div id="download-menu" style="position: relative;">
+                    <button
+                      id="download-menu-toggle"
+                      style="
+                        padding: 6px 12px;
+                        border-radius: 999px;
+                        border: 1px solid rgba(75,85,99,0.9);
+                        background: rgba(15,23,42,0.95);
+                        color: #e5e7eb;
+                        font-size: 12px;
+                        font-weight: 500;
+                        cursor: pointer;
+                      "
+                    >
+                      ⬇ Download
+                    </button>
+                    <div
+                      id="download-menu-panel"
+                      style="
+                        display: none;
+                        position: absolute;
+                        right: 0;
+                        top: 110%;
+                        background: rgba(15,23,42,0.98);
+                        border-radius: 12px;
+                        border: 1px solid rgba(55,65,81,0.9);
+                        box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+                        min-width: 190px;
+                        z-index: 20;
+                      "
+                    >
+                      <button
+                        data-action="data"
+                        style="
+                          width: 100%;
+                          padding: 8px 12px;
+                          background: transparent;
+                          border: none;
+                          color: #e5e7eb;
+                          font-size: 13px;
+                          text-align: left;
+                          cursor: pointer;
+                        "
+                      >
+                        Download data (.csv)
+                      </button>
+                      <button
+                        data-action="report"
+                        style="
+                          width: 100%;
+                          padding: 8px 12px;
+                          background: transparent;
+                          border: none;
+                          color: #e5e7eb;
+                          font-size: 13px;
+                          text-align: left;
+                          cursor: pointer;
+                        "
+                      >
+                        Download analysis (.txt)
+                      </button>
+                      <button
+                        data-action="pdf"
+                        style="
+                          width: 100%;
+                          padding: 8px 12px;
+                          background: transparent;
+                          border: none;
+                          color: #e5e7eb;
+                          font-size: 13px;
+                          text-align: left;
+                          cursor: pointer;
+                        "
+                      >
+                        Print / save as PDF
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                            
             <!-- Tab: Overview (uses summary/LLM) -->
             <div class="tab-panel active" id="tab-overview">
               <div id="summary-loading" class="loading">Loading summary…</div>
@@ -923,6 +1018,85 @@
         return reportLines.join("\n");
       }
 
+      function downloadDataCsv() {
+  // Use the full snapshot (not filtered-by-pattern) as you decided
+  const rows = currentTransfers || [];
+  if (!rows.length) {
+    alert("No whale data available to download yet.");
+    return;
+  }
+
+  const header = [
+    "tx_hash",
+    "from_address",
+    "to_address",
+    "token_symbol",
+    "amount",
+    "block_number",
+    "observed_at",
+  ];
+
+  const lines = [header.join(",")];
+
+  rows.forEach((t) => {
+    const line = [
+      t.tx_hash || "",
+      t.from_address || "",
+      t.to_address || "",
+      t.token_symbol || "",
+      Number(t.amount || 0),
+      t.block_number || "",
+      t.observed_at || "",
+    ]
+      .map((v) => {
+        const s = String(v);
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      })
+      .join(",");
+
+    lines.push(line);
+  });
+
+  const blob = new Blob([lines.join("\n")], {
+    type: "text/csv;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "whale_transfers_snapshot.csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function downloadReportTxt() {
+  const reportBody = document.getElementById("report-body");
+  // fall back to generating a fresh snapshot if empty
+  const text =
+    reportBody && reportBody.textContent.trim().length
+      ? reportBody.textContent
+      : buildSnapshotReport();
+
+  const blob = new Blob([text], {
+    type: "text/plain;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "whale_flow_report.txt";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function printReportPdf() {
+  // Easiest: rely on browser print dialog. PM can "Save as PDF".
+  window.print();
+}
+
+
       /* ---------- WALLET STATS / PATTERNS ---------- */
       function buildWalletStats(transfers) {
         const stats = {};
@@ -1289,6 +1463,7 @@
         const patternSelect = document.getElementById("filter-pattern");
         const prevBtn = document.getElementById("page-prev");
         const nextBtn = document.getElementById("page-next");
+        
 
         if (applyBtn) {
           applyBtn.addEventListener("click", () => {
@@ -1356,6 +1531,35 @@
         const chatClose = document.getElementById("chat-close-btn");
         const chatButton = document.getElementById("chat-submit");
         const chatInput = document.getElementById("chat-input");
+        const downloadToggle = document.getElementById("download-menu-toggle");
+        const downloadPanel = document.getElementById("download-menu-panel");
+
+        if (downloadToggle && downloadPanel) {
+    downloadToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const open = downloadPanel.style.display === "block";
+      downloadPanel.style.display = open ? "none" : "block";
+    });
+
+    downloadPanel.addEventListener("click", (e) => {
+      const action = e.target.getAttribute("data-action");
+      if (action === "data") downloadDataCsv();
+      if (action === "report") downloadReportTxt();
+      if (action === "pdf") printReportPdf();
+      downloadPanel.style.display = "none";
+    });
+
+    // close the menu when clicking anywhere else
+    document.addEventListener("click", (e) => {
+      if (
+        downloadPanel.style.display === "block" &&
+        !downloadPanel.contains(e.target) &&
+        e.target !== downloadToggle
+      ) {
+        downloadPanel.style.display = "none";
+      }
+    });
+  }
 
         if (chatBubble && chatPanel && chatClose) {
           chatBubble.addEventListener("click", () => {
