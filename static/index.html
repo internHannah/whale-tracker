@@ -6,7 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
       body {
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
           sans-serif;
         margin: 0;
         padding: 0;
@@ -105,7 +109,8 @@
       }
 
       .address {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
           "Liberation Mono", "Courier New", monospace;
         font-size: 12px;
       }
@@ -394,7 +399,9 @@
                 full on-chain history).
               </div>
               <div style="margin-bottom: 8px">
-                <div style="font-size: 11px; color: #9ca3af">Selected wallet</div>
+                <div style="font-size: 11px; color: #9ca3af">
+                  Selected wallet
+                </div>
                 <div
                   id="wallet-address"
                   class="address"
@@ -410,7 +417,9 @@
                 "
               >
                 <div>
-                  <div style="font-size: 11px; color: #9ca3af">Total inflow</div>
+                  <div style="font-size: 11px; color: #9ca3af">
+                    Total inflow
+                  </div>
                   <div id="wallet-inflow" style="font-weight: 600">–</div>
                 </div>
                 <div>
@@ -469,9 +478,7 @@
 
             <!-- Tab: Overview (uses summary/LLM) -->
             <div class="tab-panel active" id="tab-overview">
-              <div id="summary-loading" class="loading">
-                Loading summary…
-              </div>
+              <div id="summary-loading" class="loading">Loading summary…</div>
               <div
                 id="summary-text"
                 class="summary-text"
@@ -482,11 +489,7 @@
                 class="summary-meta"
                 style="display: none"
               ></div>
-              <div
-                id="summary-error"
-                class="error"
-                style="display: none"
-              ></div>
+              <div id="summary-error" class="error" style="display: none"></div>
             </div>
 
             <!-- Tab: Flow Intelligence (metrics) -->
@@ -522,10 +525,7 @@
                     <div style="font-size: 11px; color: #9ca3af">
                       Unique wallets
                     </div>
-                    <div
-                      id="metric-unique-wallets"
-                      style="font-weight: 600"
-                    >
+                    <div id="metric-unique-wallets" style="font-weight: 600">
                       –
                     </div>
                   </div>
@@ -549,18 +549,12 @@
                   ></div>
                 </div>
               </div>
-              <div
-                id="metrics-error"
-                class="error"
-                style="display: none"
-              ></div>
+              <div id="metrics-error" class="error" style="display: none"></div>
             </div>
 
             <!-- Tab: Research Report -->
             <div class="tab-panel" id="tab-report">
-              <div
-                style="margin-bottom: 8px; font-size: 12px; color: #9ca3af"
-              >
+              <div style="margin-bottom: 8px; font-size: 12px; color: #9ca3af">
                 Generates a structured note you could share with a PM or in a
                 research channel, based on the current whale snapshot and AI
                 summary.
@@ -582,10 +576,7 @@
               >
                 Generate snapshot note
               </button>
-              <span
-                id="report-status"
-                class="loading"
-                style="display: none"
+              <span id="report-status" class="loading" style="display: none"
                 >Building note…</span
               >
 
@@ -623,6 +614,47 @@
         or “Does this look like exchange activity or internal treasury moves?”
       </div>
       <div style="display: flex; flex-direction: column; gap: 8px">
+        <div
+          style="
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 6px;
+            font-size: 11px;
+            color: #9ca3af;
+          "
+        >
+          <span style="opacity: 0.85">Try:</span>
+          <button
+            class="chat-suggestion"
+            data-question="How do I use this dashboard? Please explain what I can do with the table, Flow Intelligence, Wallet Drill-down, and Research Note."
+            style="
+              padding: 3px 8px;
+              border-radius: 999px;
+              border: 1px solid rgba(55, 65, 81, 0.9);
+              background: rgba(15, 23, 42, 0.9);
+              color: #e5e7eb;
+              cursor: pointer;
+            "
+          >
+            How do I use this?
+          </button>
+          <button
+            class="chat-suggestion"
+            data-question="Are whales in this snapshot mostly accumulating or distributing? Explain briefly."
+            style="
+              padding: 3px 8px;
+              border-radius: 999px;
+              border: 1px solid rgba(55, 65, 81, 0.9);
+              background: rgba(15, 23, 42, 0.9);
+              color: #e5e7eb;
+              cursor: pointer;
+            "
+          >
+            Are whales accumulating?
+          </button>
+        </div>
+
         <textarea
           id="chat-input"
           rows="3"
@@ -672,9 +704,7 @@
       </div>
     </div>
 
-    <div id="chat-widget-bubble">
-      💬 Ask AI about these flows
-    </div>
+    <div id="chat-widget-bubble">💬 Ask AI about these flows</div>
 
     <script>
       let currentTransfers = [];
@@ -862,9 +892,7 @@
           topWalletLines = top3
             .map(
               ([addr, vol], idx) =>
-                `${idx + 1}. ${shortenAddress(
-                  addr,
-                )} – ${vol.toFixed(2)} ETH`,
+                `${idx + 1}. ${shortenAddress(addr)} – ${vol.toFixed(2)} ETH`,
             )
             .join("\n");
         }
@@ -1348,6 +1376,17 @@
               e.preventDefault();
               sendChatQuestion();
             }
+          });
+        }
+        const suggestionButtons = document.querySelectorAll(".chat-suggestion");
+        if (suggestionButtons && chatInput) {
+          suggestionButtons.forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const q = btn.getAttribute("data-question") || "";
+              chatInput.value = q;
+              // optional: auto-send when clicked
+              sendChatQuestion();
+            });
           });
         }
       });

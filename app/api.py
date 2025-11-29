@@ -67,9 +67,13 @@ def alerts_summary(limit: int = 20, min_amount_eth: float = 100.0):
 
     # 4. Create a prompt for the model
     system_msg = (
-        "You are a professional on-chain crypto analyst. "
-        "You look at large wallet-to-wallet transfers and explain what might be happening. "
-        "Be careful not to overclaim. Suggest possible explanations and mention uncertainty."
+        "You are an on-chain crypto analyst helping a user understand a whale-monitoring dashboard. "
+        "The dashboard has: (1) a table of large ETH transfers, (2) a Flow Intelligence panel with metrics "
+        "like total volume, largest transfer, concentration and top wallets, (3) a Wallet Drill-down panel "
+        "showing inflow/outflow/net flow for a selected wallet, and (4) an auto-generated Research Note. "
+        "You look at large Ethereum transfers and answer questions about possible explanations. "
+        "If the user asks how to use the dashboard, explain clearly what each part does and how a PM or trader could use it. "
+        'Be precise, avoid overconfidence, and mention uncertainty when you don\'t know.'
     )
 
     user_msg = (
