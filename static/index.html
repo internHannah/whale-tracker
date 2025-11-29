@@ -144,6 +144,34 @@
         font-size: 13px;
         color: #9ca3af;
       }
+      .layout {
+        display: flex;
+        gap: 18px;
+        align-items: flex-start;
+      }
+
+      .main-column {
+        flex: 2.3; /* wider: ~70% */
+        min-width: 0;
+      }
+
+      .sidebar {
+        flex: 1; /* narrower: ~30% */
+        min-width: 260px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      /* Make it stack on small screens */
+      @media (max-width: 900px) {
+        .layout {
+          flex-direction: column;
+        }
+        .sidebar {
+          width: 100%;
+        }
+      }
     </style>
   </head>
   <body>
@@ -154,192 +182,321 @@
         prototype).
       </div>
 
-      <!-- Flow Intelligence metrics -->
-      <div class="card" id="metrics-card">
-        <div class="card-title" style="margin-bottom: 8px">
-          Flow Intelligence
-          <span class="badge">Snapshot metrics</span>
-        </div>
-        <div id="metrics-loading" class="loading">Waiting for whale data…</div>
-
-        <div
-          id="metrics-body"
-          style="display: none; font-size: 13px; color: #d1d5db"
-        >
-          <div
-            style="
-              display: flex;
-              flex-wrap: wrap;
-              gap: 12px;
-              margin-bottom: 8px;
-            "
-          >
-            <div>
-              <div style="font-size: 11px; color: #9ca3af">Total volume</div>
-              <div id="metric-volume" style="font-weight: 600">–</div>
+      <div class="layout">
+        <!-- ================= LEFT: DATA ================= -->
+        <div class="main-column">
+          <div class="card">
+            <div class="card-title" style="margin-bottom: 6px">
+              Recent Whale Transfers
+              <span class="chip">ETH &ge; 100</span>
             </div>
-            <div>
-              <div style="font-size: 11px; color: #9ca3af">
-                Largest transfer
+
+            <!-- Filters -->
+            <div
+              style="
+                display: flex;
+                flex-wrap: wrap;
+                gap: 12px;
+                margin-bottom: 8px;
+                font-size: 12px;
+                color: #9ca3af;
+              "
+            >
+              <div>
+                <span>Min amount (ETH): </span>
+                <input
+                  id="filter-min-amount"
+                  type="number"
+                  value="100"
+                  min="0"
+                  step="10"
+                  style="
+                    width: 80px;
+                    padding: 2px 6px;
+                    border-radius: 6px;
+                    border: 1px solid rgba(55, 65, 81, 0.9);
+                    background: rgba(15, 23, 42, 0.9);
+                    color: #e5e7eb;
+                  "
+                />
               </div>
-              <div id="metric-largest" style="font-weight: 600">–</div>
-            </div>
-            <div>
-              <div style="font-size: 11px; color: #9ca3af">Unique wallets</div>
-              <div id="metric-unique-wallets" style="font-weight: 600">–</div>
-            </div>
-            <div>
-              <div style="font-size: 11px; color: #9ca3af">Concentration</div>
-              <div id="metric-concentration" style="font-weight: 600">–</div>
-            </div>
-          </div>
-
-          <div style="margin-top: 4px">
-            <div style="font-size: 11px; color: #9ca3af">
-              Top wallets in this snapshot
-            </div>
-            <div
-              id="metric-top-wallets"
-              style="font-size: 12px; margin-top: 4px"
-            ></div>
-          </div>
-        </div>
-
-        <div id="metrics-error" class="error" style="display: none"></div>
-      </div>
-
-      <!-- AI summary card -->
-      <div class="card" id="summary-card">
-        <div class="card-title">
-          Market Snapshot
-          <span class="badge">AI analysis</span>
-        </div>
-        <div id="summary-loading" class="loading">Loading summary…</div>
-        <div id="summary-text" class="summary-text" style="display: none"></div>
-        <div id="summary-meta" class="summary-meta" style="display: none"></div>
-        <div id="summary-error" class="error" style="display: none"></div>
-      </div>
-
-          <!-- Research note / mini report -->
-    <div class="card" id="report-card">
-        <div class="card-title" style="margin-bottom: 8px;">
-          Research Note
-          <span class="badge">Snapshot report</span>
-        </div>
-        <div style="margin-bottom: 8px; font-size: 12px; color: #9ca3af;">
-          Generates a structured note you could share with a PM or in a research channel,
-          based on the current whale snapshot and AI summary.
-        </div>
-        <button
-          id="report-generate"
-          style="padding: 6px 14px; border-radius: 999px; border: none; font-size: 13px; font-weight: 500; cursor: pointer; background: linear-gradient(135deg, #4b5563, #0ea5e9); color: white; margin-bottom: 10px; box-shadow: 0 6px 20px rgba(15,23,42,0.7);"
-        >
-          Generate snapshot note
-        </button>
-        <span id="report-status" class="loading" style="display: none;">Building note…</span>
-  
-        <div
-          id="report-body"
-          style="display: none; margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(15,23,42,0.9); font-size: 13px; line-height: 1.5; color: #e5e7eb; white-space: pre-wrap;"
-        ></div>
-      </div>  
-
-      <!-- Wallet drill-down -->
-      <div class="card" id="wallet-card">
-        <div class="card-title" style="margin-bottom: 8px">
-          Wallet Drill-down
-          <span class="badge">Per-wallet view</span>
-        </div>
-        <div id="wallet-empty" class="loading">
-          Click a wallet address in the table to see its flow profile in this
-          snapshot.
-        </div>
-        <div
-          id="wallet-body"
-          style="display: none; font-size: 13px; color: #d1d5db"
-        >
-          <div style="margin-bottom: 8px; font-size: 12px; color: #9ca3af">
-            Snapshot based on the current set of whale transfers only (not full
-            on-chain history).
-          </div>
-          <div style="margin-bottom: 8px">
-            <div style="font-size: 11px; color: #9ca3af">Selected wallet</div>
-            <div
-              id="wallet-address"
-              class="address"
-              style="font-size: 12px"
-            ></div>
-          </div>
-          <div
-            style="
-              display: flex;
-              flex-wrap: wrap;
-              gap: 12px;
-              margin-bottom: 8px;
-            "
-          >
-            <div>
-              <div style="font-size: 11px; color: #9ca3af">Total inflow</div>
-              <div id="wallet-inflow" style="font-weight: 600">–</div>
-            </div>
-            <div>
-              <div style="font-size: 11px; color: #9ca3af">Total outflow</div>
-              <div id="wallet-outflow" style="font-weight: 600">–</div>
-            </div>
-            <div>
-              <div style="font-size: 11px; color: #9ca3af">Net flow</div>
-              <div id="wallet-net" style="font-weight: 600">–</div>
-            </div>
-            <div>
-              <div style="font-size: 11px; color: #9ca3af">
-                Transfers involving wallet
+              <div>
+                <span>Pattern: </span>
+                <select
+                  id="filter-pattern"
+                  style="
+                    padding: 2px 6px;
+                    border-radius: 6px;
+                    border: 1px solid rgba(55, 65, 81, 0.9);
+                    background: rgba(15, 23, 42, 0.9);
+                    color: #e5e7eb;
+                  "
+                >
+                  <option value="all">All</option>
+                  <option value="Accumulator-like">Accumulator-like</option>
+                  <option value="Distributor-like">Distributor-like</option>
+                  <option value="Balanced">Balanced</option>
+                </select>
               </div>
-              <div id="wallet-txcount" style="font-weight: 600">–</div>
+              <div>
+                <button
+                  id="filter-apply"
+                  style="
+                    padding: 4px 10px;
+                    border-radius: 999px;
+                    border: none;
+                    font-size: 12px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    background: linear-gradient(135deg, #4b5563, #0ea5e9);
+                    color: white;
+                  "
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+
+            <!-- Loading / error / table / pagination LIVE INSIDE CARD -->
+            <div id="table-loading" class="loading">
+              Loading whale transfers…
+            </div>
+            <div id="table-error" class="error" style="display: none"></div>
+
+            <div style="overflow-x: auto">
+              <table id="whale-table" style="display: none">
+                <thead>
+                  <tr>
+                    <th>Amount</th>
+                    <th>Token</th>
+                    <th>From</th>
+                    <th>To</th>
+                    <th>Pattern</th>
+                    <th>Block</th>
+                    <th>Observed</th>
+                  </tr>
+                </thead>
+                <tbody id="whale-tbody"></tbody>
+              </table>
+            </div>
+
+            <!-- Pagination -->
+            <div
+              id="pagination"
+              style="
+                display: none;
+                margin-top: 8px;
+                font-size: 12px;
+                color: #9ca3af;
+                justify-content: flex-end;
+                align-items: center;
+                gap: 8px;
+              "
+            >
+              <button
+                id="page-prev"
+                style="
+                  padding: 3px 8px;
+                  border-radius: 999px;
+                  border: 1px solid rgba(75, 85, 99, 0.9);
+                  background: rgba(15, 23, 42, 0.9);
+                  color: #e5e7eb;
+                  cursor: pointer;
+                "
+              >
+                Prev
+              </button>
+              <span id="page-info">Page 1 / 1</span>
+              <button
+                id="page-next"
+                style="
+                  padding: 3px 8px;
+                  border-radius: 999px;
+                  border: 1px solid rgba(75, 85, 99, 0.9);
+                  background: rgba(15, 23, 42, 0.9);
+                  color: #e5e7eb;
+                  cursor: pointer;
+                "
+              >
+                Next
+              </button>
             </div>
           </div>
-          <div>
-            <div style="font-size: 11px; color: #9ca3af">
-              Role in this flow window
+        </div>
+
+        <!-- ================= RIGHT: INTELLIGENCE SIDEBAR ================= -->
+        <div class="sidebar">
+          <!-- AI summary card -->
+          <div class="card" id="summary-card">
+            <div class="card-title">
+              Market Snapshot
+              <span class="badge">AI analysis</span>
+            </div>
+            <div id="summary-loading" class="loading">Loading summary…</div>
+            <div
+              id="summary-text"
+              class="summary-text"
+              style="display: none"
+            ></div>
+            <div
+              id="summary-meta"
+              class="summary-meta"
+              style="display: none"
+            ></div>
+            <div id="summary-error" class="error" style="display: none"></div>
+          </div>
+
+          <!-- Flow Intelligence metrics -->
+          <div class="card" id="metrics-card">
+            <div class="card-title" style="margin-bottom: 8px">
+              Flow Intelligence
+              <span class="badge">Snapshot metrics</span>
+            </div>
+            <div id="metrics-loading" class="loading">
+              Waiting for whale data…
+            </div>
+
+            <div
+              id="metrics-body"
+              style="display: none; font-size: 13px; color: #d1d5db"
+            >
+              <div
+                style="
+                  display: flex;
+                  flex-wrap: wrap;
+                  gap: 12px;
+                  margin-bottom: 8px;
+                "
+              >
+                <div>
+                  <div style="font-size: 11px; color: #9ca3af">
+                    Total volume
+                  </div>
+                  <div id="metric-volume" style="font-weight: 600">–</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: #9ca3af">
+                    Largest transfer
+                  </div>
+                  <div id="metric-largest" style="font-weight: 600">–</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: #9ca3af">
+                    Unique wallets
+                  </div>
+                  <div id="metric-unique-wallets" style="font-weight: 600">
+                    –
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: #9ca3af">
+                    Concentration
+                  </div>
+                  <div id="metric-concentration" style="font-weight: 600">
+                    –
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-top: 4px">
+                <div style="font-size: 11px; color: #9ca3af">
+                  Top wallets in this snapshot
+                </div>
+                <div
+                  id="metric-top-wallets"
+                  style="font-size: 12px; margin-top: 4px"
+                ></div>
+              </div>
+            </div>
+
+            <div id="metrics-error" class="error" style="display: none"></div>
+          </div>
+
+          <!-- Wallet Drill-down -->
+          <div class="card" id="wallet-card">
+            <div class="card-title" style="margin-bottom: 8px">
+              Wallet Drill-down
+              <span class="badge">Per-wallet view</span>
+            </div>
+            <div id="wallet-empty" class="loading">
+              Click a wallet address in the table to see its flow profile in
+              this snapshot.
             </div>
             <div
-              id="wallet-role"
-              style="font-weight: 600; font-size: 13px"
-            ></div>
+              id="wallet-body"
+              style="display: none; font-size: 13px; color: #d1d5db"
+            >
+              <div style="margin-bottom: 8px; font-size: 12px; color: #9ca3af">
+                Snapshot based on the current set of whale transfers only (not
+                full on-chain history).
+              </div>
+              <div style="margin-bottom: 8px">
+                <div style="font-size: 11px; color: #9ca3af">
+                  Selected wallet
+                </div>
+                <div
+                  id="wallet-address"
+                  class="address"
+                  style="font-size: 12px"
+                ></div>
+              </div>
+              <div
+                style="
+                  display: flex;
+                  flex-wrap: wrap;
+                  gap: 12px;
+                  margin-bottom: 8px;
+                "
+              >
+                <div>
+                  <div style="font-size: 11px; color: #9ca3af">
+                    Total inflow
+                  </div>
+                  <div id="wallet-inflow" style="font-weight: 600">–</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: #9ca3af">
+                    Total outflow
+                  </div>
+                  <div id="wallet-outflow" style="font-weight: 600">–</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: #9ca3af">Net flow</div>
+                  <div id="wallet-net" style="font-weight: 600">–</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: #9ca3af">
+                    Transfers involving wallet
+                  </div>
+                  <div id="wallet-txcount" style="font-weight: 600">–</div>
+                </div>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: #9ca3af">
+                  Role in this flow window
+                </div>
+                <div
+                  id="wallet-role"
+                  style="font-weight: 600; font-size: 13px"
+                ></div>
+              </div>
+            </div>
+            <div id="wallet-error" class="error" style="display: none"></div>
           </div>
-        </div>
-        <div id="wallet-error" class="error" style="display: none"></div>
-      </div>
 
-      <!-- Ask AI about these flows -->
-      <div class="card">
-        <div class="card-title" style="margin-bottom: 8px">
-          Ask AI about these flows
-          <span class="badge">Q&A</span>
-        </div>
-        <div style="margin-bottom: 8px; font-size: 12px; color: #9ca3af">
-          Ask questions like: “Why are there so many transfers from this
-          wallet?” or “Does this look like exchange activity or internal
-          treasury moves?”
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 8px">
-          <textarea
-            id="chat-input"
-            rows="3"
-            placeholder="Type your question about these whale transfers…"
-            style="
-              resize: vertical;
-              padding: 8px 10px;
-              border-radius: 8px;
-              border: 1px solid rgba(55, 65, 81, 0.9);
-              background: rgba(15, 23, 42, 0.9);
-              color: #e5e7eb;
-              font-size: 13px;
-              font-family: inherit;
-            "
-          ></textarea>
-          <div style="display: flex; align-items: center; gap: 10px">
+          <!-- Research Note -->
+          <div class="card" id="report-card">
+            <div class="card-title" style="margin-bottom: 8px">
+              Research Note
+              <span class="badge">Snapshot report</span>
+            </div>
+            <div style="margin-bottom: 8px; font-size: 12px; color: #9ca3af">
+              Generates a structured note you could share with a PM or in a
+              research channel, based on the current whale snapshot and AI
+              summary.
+            </div>
             <button
-              id="chat-submit"
+              id="report-generate"
               style="
                 padding: 6px 14px;
                 border-radius: 999px;
@@ -347,142 +504,103 @@
                 font-size: 13px;
                 font-weight: 500;
                 cursor: pointer;
-                background: linear-gradient(135deg, #4f46e5, #06b6d4);
+                background: linear-gradient(135deg, #4b5563, #0ea5e9);
                 color: white;
-                box-shadow: 0 8px 25px rgba(15, 23, 42, 0.7);
+                margin-bottom: 10px;
+                box-shadow: 0 6px 20px rgba(15, 23, 42, 0.7);
               "
             >
-              Ask AI
+              Generate snapshot note
             </button>
-            <span id="chat-status" class="loading" style="display: none"
-              >Thinking…</span
+            <span id="report-status" class="loading" style="display: none"
+              >Building note…</span
             >
+
+            <div
+              id="report-body"
+              style="
+                display: none;
+                margin-top: 10px;
+                padding: 10px 12px;
+                border-radius: 12px;
+                background: rgba(15, 23, 42, 0.9);
+                font-size: 13px;
+                line-height: 1.5;
+                color: #e5e7eb;
+                white-space: pre-wrap;
+              "
+            ></div>
           </div>
-          <div
-            id="chat-answer"
-            class="summary-text"
-            style="
-              display: none;
-              border-top: 1px solid rgba(55, 65, 81, 0.7);
-              padding-top: 8px;
-            "
-          ></div>
-          <div id="chat-error" class="error" style="display: none"></div>
+
+          <!-- Ask AI about these flows (only ONCE) -->
+          <div class="card">
+            <div class="card-title" style="margin-bottom: 8px">
+              Ask AI about these flows
+              <span class="badge">Q&amp;A</span>
+            </div>
+            <div style="margin-bottom: 8px; font-size: 12px; color: #9ca3af">
+              Ask questions like: “Why are there so many transfers from this
+              wallet?” or “Does this look like exchange activity or internal
+              treasury moves?”
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <textarea
+                id="chat-input"
+                rows="3"
+                placeholder="Type your question about these whale transfers…"
+                style="
+                  resize: vertical;
+                  padding: 8px 10px;
+                  border-radius: 8px;
+                  border: 1px solid rgba(55, 65, 81, 0.9);
+                  background: rgba(15, 23, 42, 0.9);
+                  color: #e5e7eb;
+                  font-size: 13px;
+                  font-family: inherit;
+                "
+              ></textarea>
+              <div style="display: flex; align-items: center; gap: 10px">
+                <button
+                  id="chat-submit"
+                  style="
+                    padding: 6px 14px;
+                    border-radius: 999px;
+                    border: none;
+                    font-size: 13px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    background: linear-gradient(135deg, #4f46e5, #06b6d4);
+                    color: white;
+                    box-shadow: 0 8px 25px rgba(15, 23, 42, 0.7);
+                  "
+                >
+                  Ask AI
+                </button>
+                <span id="chat-status" class="loading" style="display: none"
+                  >Thinking…</span
+                >
+              </div>
+              <div
+                id="chat-answer"
+                class="summary-text"
+                style="
+                  display: none;
+                  border-top: 1px solid rgba(55, 65, 81, 0.7);
+                  padding-top: 8px;
+                "
+              ></div>
+              <div id="chat-error" class="error" style="display: none"></div>
+            </div>
+          </div>
         </div>
       </div>
-
-      <!-- Whale transfers table -->
-      <div class="card">
-        <div class="card-title" style="margin-bottom: 6px;">
-          Recent Whale Transfers
-          <span class="chip">ETH &ge; 100</span>
-        </div>
-  
-        <!-- Filters -->
-        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; font-size: 12px; color: #9ca3af;">
-          <div>
-            <span>Min amount (ETH): </span>
-            <input
-              id="filter-min-amount"
-              type="number"
-              value="100"
-              min="0"
-              step="10"
-              style="width: 80px; padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(55,65,81,0.9); background: rgba(15,23,42,0.9); color: #e5e7eb;"
-            />
-          </div>
-          <div>
-            <span>Pattern: </span>
-            <select
-              id="filter-pattern"
-              style="padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(55,65,81,0.9); background: rgba(15,23,42,0.9); color: #e5e7eb;"
-            >
-              <option value="all">All</option>
-              <option value="Accumulator-like">Accumulator-like</option>
-              <option value="Distributor-like">Distributor-like</option>
-              <option value="Balanced">Balanced</option>
-            </select>
-          </div>
-          <div>
-            <button
-              id="filter-apply"
-              style="padding: 4px 10px; border-radius: 999px; border: none; font-size: 12px; font-weight: 500; cursor: pointer; background: linear-gradient(135deg, #4b5563, #0ea5e9); color: white;"
-            >
-              Apply
-            </button>
-          </div>
-        </div>        
-        </div>
-  
-        <div id="table-loading" class="loading">Loading whale transfers…</div>  
-        <div id="table-error" class="error" style="display: none"></div>
-        <div style="overflow-x: auto">
-          <table id="whale-table" style="display: none">
-            <thead>
-              <tr>
-                <th>Amount</th>
-                <th>Token</th>
-                <th>From</th>
-                <th>To</th>
-                <th>Pattern</th>
-                <th>Block</th>
-                <th>Observed</th>
-              </tr>
-            </thead>
-            <tbody id="whale-tbody"></tbody>
-          </table>
-        </div>
-              <!-- Pagination -->
-      <div
-      id="pagination"
-      style="
-        display: none;
-        margin-top: 8px;
-        font-size: 12px;
-        color: #9ca3af;
-        display: none;
-        justify-content: flex-end;
-        align-items: center;
-        gap: 8px;
-      "
-    >
-      <button
-        id="page-prev"
-        style="
-          padding: 3px 8px;
-          border-radius: 999px;
-          border: 1px solid rgba(75,85,99,0.9);
-          background: rgba(15,23,42,0.9);
-          color: #e5e7eb;
-          cursor: pointer;
-        "
-      >
-        Prev
-      </button>
-      <span id="page-info">Page 1 / 1</span>
-      <button
-        id="page-next"
-        style="
-          padding: 3px 8px;
-          border-radius: 999px;
-          border: 1px solid rgba(75,85,99,0.9);
-          background: rgba(15,23,42,0.9);
-          color: #e5e7eb;
-          cursor: pointer;
-        "
-      >
-        Next
-      </button>
     </div>
-      </div>
-    </div>
-
     <script>
       let currentTransfers = [];
       let selectedWallet = null;
-        let currentWalletStats = null;
-        let currentPage = 1;
-        const PAGE_SIZE = 20;
+      let currentWalletStats = null;
+      let currentPage = 1;
+      const PAGE_SIZE = 20;
 
       function shortenAddress(addr) {
         if (!addr || addr.length < 10) return addr || "";
@@ -586,81 +704,85 @@
       }
 
       function buildSnapshotReport() {
-      // We’ll pull metrics from the DOM + currentTransfers + summary text
-      const summaryTextEl = document.getElementById("summary-text");
-      const volumeEl = document.getElementById("metric-volume");
-      const largestEl = document.getElementById("metric-largest");
-      const uniqEl = document.getElementById("metric-unique-wallets");
-      const concEl = document.getElementById("metric-concentration");
+        // We’ll pull metrics from the DOM + currentTransfers + summary text
+        const summaryTextEl = document.getElementById("summary-text");
+        const volumeEl = document.getElementById("metric-volume");
+        const largestEl = document.getElementById("metric-largest");
+        const uniqEl = document.getElementById("metric-unique-wallets");
+        const concEl = document.getElementById("metric-concentration");
 
-      const summary = (summaryTextEl && summaryTextEl.textContent.trim())
-        ? summaryTextEl.textContent.trim()
-        : "No AI summary available for this snapshot.";
+        const summary =
+          summaryTextEl && summaryTextEl.textContent.trim()
+            ? summaryTextEl.textContent.trim()
+            : "No AI summary available for this snapshot.";
 
-      const totalVol = volumeEl ? volumeEl.textContent.trim() : "n/a";
-      const largest = largestEl ? largestEl.textContent.trim() : "n/a";
-      const uniq = uniqEl ? uniqEl.textContent.trim() : "n/a";
-      const conc = concEl ? concEl.textContent.trim() : "n/a";
+        const totalVol = volumeEl ? volumeEl.textContent.trim() : "n/a";
+        const largest = largestEl ? largestEl.textContent.trim() : "n/a";
+        const uniq = uniqEl ? uniqEl.textContent.trim() : "n/a";
+        const conc = concEl ? concEl.textContent.trim() : "n/a";
 
-      const now = new Date();
-      const isoDate = now.toISOString().split("T")[0];
-      const timeStr = now.toISOString().split("T")[1].split(".")[0] + " UTC";
+        const now = new Date();
+        const isoDate = now.toISOString().split("T")[0];
+        const timeStr = now.toISOString().split("T")[1].split(".")[0] + " UTC";
 
-      // Build top wallets section (reuse Flow Intelligence logic)
-      const walletVolumes = new Map();
-      (currentTransfers || []).forEach(t => {
-        const amt = Number(t.amount || 0);
-        if (t.from_address) {
-          walletVolumes.set(
-            t.from_address,
-            (walletVolumes.get(t.from_address) || 0) + amt
-          );
+        // Build top wallets section (reuse Flow Intelligence logic)
+        const walletVolumes = new Map();
+        (currentTransfers || []).forEach((t) => {
+          const amt = Number(t.amount || 0);
+          if (t.from_address) {
+            walletVolumes.set(
+              t.from_address,
+              (walletVolumes.get(t.from_address) || 0) + amt,
+            );
+          }
+          if (t.to_address) {
+            walletVolumes.set(
+              t.to_address,
+              (walletVolumes.get(t.to_address) || 0) + amt,
+            );
+          }
+        });
+
+        const sorted = Array.from(walletVolumes.entries()).sort(
+          (a, b) => b[1] - a[1],
+        );
+        const top3 = sorted.slice(0, 3);
+
+        let topWalletLines = "None.";
+        if (top3.length > 0) {
+          topWalletLines = top3
+            .map(
+              ([addr, vol], idx) =>
+                `${idx + 1}. ${shortenAddress(addr)} – ${vol.toFixed(2)} ETH`,
+            )
+            .join("\n");
         }
-        if (t.to_address) {
-          walletVolumes.set(
-            t.to_address,
-            (walletVolumes.get(t.to_address) || 0) + amt
-          );
-        }
-      });
 
-      const sorted = Array.from(walletVolumes.entries()).sort((a, b) => b[1] - a[1]);
-      const top3 = sorted.slice(0, 3);
+        const reportLines = [
+          `ETH Whale Flow Snapshot – ${isoDate} (${timeStr})`,
+          "",
+          `1) Executive Summary (AI)`,
+          summary,
+          "",
+          `2) Flow Metrics`,
+          `• Total volume: ${totalVol}`,
+          `• Largest transfer: ${largest}`,
+          `• Unique wallets in this snapshot: ${uniq}`,
+          `• Concentration: ${conc}`,
+          "",
+          `3) Top Whale Wallets (by volume in this snapshot)`,
+          topWalletLines,
+          "",
+          `4) Analyst Notes`,
+          `This note is generated from a single snapshot of large ETH transfers.`,
+          `For production use, it would be extended with:`,
+          `• wallet labels (exchanges, treasuries, funds)`,
+          `• longer lookback windows and historical context`,
+          `• sentiment / price context (e.g., Tie sentiment scores vs whale behavior).`,
+        ];
 
-      let topWalletLines = "None.";
-      if (top3.length > 0) {
-        topWalletLines = top3
-          .map(([addr, vol], idx) =>
-            `${idx + 1}. ${shortenAddress(addr)} – ${vol.toFixed(2)} ETH`
-          )
-          .join("\n");
+        return reportLines.join("\n");
       }
-
-      const reportLines = [
-        `ETH Whale Flow Snapshot – ${isoDate} (${timeStr})`,
-        "",
-        `1) Executive Summary (AI)`,
-        summary,
-        "",
-        `2) Flow Metrics`,
-        `• Total volume: ${totalVol}`,
-        `• Largest transfer: ${largest}`,
-        `• Unique wallets in this snapshot: ${uniq}`,
-        `• Concentration: ${conc}`,
-        "",
-        `3) Top Whale Wallets (by volume in this snapshot)`,
-        topWalletLines,
-        "",
-        `4) Analyst Notes`,
-        `This note is generated from a single snapshot of large ETH transfers.`,
-        `For production use, it would be extended with:`,
-        `• wallet labels (exchanges, treasuries, funds)`,
-        `• longer lookback windows and historical context`,
-        `• sentiment / price context (e.g., Tie sentiment scores vs whale behavior).`,
-      ];
-
-      return reportLines.join("\n");
-    }
 
       async function loadSummary() {
         const loadingEl = document.getElementById("summary-loading");
@@ -740,197 +862,201 @@
       }
 
       async function loadWhales() {
-      const loadingEl = document.getElementById("table-loading");
-      const tableEl = document.getElementById("whale-table");
-      const tbodyEl = document.getElementById("whale-tbody");
-      const errEl = document.getElementById("table-error");
-      const paginationEl = document.getElementById("pagination");
+        const loadingEl = document.getElementById("table-loading");
+        const tableEl = document.getElementById("whale-table");
+        const tbodyEl = document.getElementById("whale-tbody");
+        const errEl = document.getElementById("table-error");
+        const paginationEl = document.getElementById("pagination");
 
-      const minAmountInput = document.getElementById("filter-min-amount");
-      const minAmount = Number((minAmountInput && minAmountInput.value) || 100);
-
-      // reset UI
-      loadingEl.style.display = "block";
-      loadingEl.textContent = "Loading whale transfers…";
-      tableEl.style.display = "none";
-      tbodyEl.innerHTML = "";
-      errEl.style.display = "none";
-      if (paginationEl) paginationEl.style.display = "none";
-
-      try {
-        // ask backend for up to 200 rows
-        const res = await fetch(
-          `/alerts/latest?limit=200&min_amount=${encodeURIComponent(minAmount)}`
+        const minAmountInput = document.getElementById("filter-min-amount");
+        const minAmount = Number(
+          (minAmountInput && minAmountInput.value) || 100,
         );
-        if (!res.ok) {
-          throw new Error("HTTP " + res.status);
-        }
 
-        const data = await res.json();
-        const rows = data.transfers || [];
+        // reset UI
+        loadingEl.style.display = "block";
+        loadingEl.textContent = "Loading whale transfers…";
+        tableEl.style.display = "none";
+        tbodyEl.innerHTML = "";
+        errEl.style.display = "none";
+        if (paginationEl) paginationEl.style.display = "none";
 
-        currentTransfers = rows;
+        try {
+          // ask backend for up to 200 rows
+          const res = await fetch(
+            `/alerts/latest?limit=200&min_amount=${encodeURIComponent(minAmount)}`,
+          );
+          if (!res.ok) {
+            throw new Error("HTTP " + res.status);
+          }
 
-        if (rows.length === 0) {
-          loadingEl.textContent =
-            "No large ETH transfers returned by the provider right now.";
+          const data = await res.json();
+          const rows = data.transfers || [];
+
+          currentTransfers = rows;
+
+          if (rows.length === 0) {
+            loadingEl.textContent =
+              "No large ETH transfers returned by the provider right now.";
+            updateMetricsCard?.();
+            selectWallet(null);
+            return;
+          }
+
+          // build stats once for snapshot
+          currentWalletStats = buildWalletStats(rows);
+          currentPage = 1;
+
+          loadingEl.style.display = "none";
           updateMetricsCard?.();
+          selectedWallet = null;
           selectWallet(null);
+
+          // render first page
+          renderWhaleTable();
+        } catch (err) {
+          console.error(err);
+          loadingEl.style.display = "none";
+          errEl.textContent = "Could not load whale transfers.";
+          errEl.style.display = "block";
+        }
+      }
+
+      function renderWhaleTable() {
+        const tableEl = document.getElementById("whale-table");
+        const tbodyEl = document.getElementById("whale-tbody");
+        const loadingEl = document.getElementById("table-loading");
+        const errEl = document.getElementById("table-error");
+        const patternSelect = document.getElementById("filter-pattern");
+
+        const paginationEl = document.getElementById("pagination");
+        const pageInfoEl = document.getElementById("page-info");
+        const prevBtn = document.getElementById("page-prev");
+        const nextBtn = document.getElementById("page-next");
+
+        tbodyEl.innerHTML = "";
+        errEl.style.display = "none";
+
+        if (!currentTransfers || currentTransfers.length === 0) {
+          tableEl.style.display = "none";
+          if (paginationEl) paginationEl.style.display = "none";
           return;
         }
 
-        // build stats once for snapshot
-        currentWalletStats = buildWalletStats(rows);
-        currentPage = 1;
+        const patternFilter = (patternSelect && patternSelect.value) || "all";
+
+        // enrich with pattern labels
+        const enriched = currentTransfers.map((t) => {
+          const pattern = classifyPatternForTransfer(
+            t,
+            currentWalletStats || {},
+          );
+          return { transfer: t, pattern };
+        });
+
+        // apply pattern filter
+        const filtered = enriched.filter((row) => {
+          if (patternFilter === "all") return true;
+          return row.pattern.label === patternFilter;
+        });
+
+        if (filtered.length === 0) {
+          tableEl.style.display = "none";
+          loadingEl.style.display = "block";
+          loadingEl.textContent = "No transfers match the current filters.";
+          if (paginationEl) paginationEl.style.display = "none";
+          return;
+        }
+
+        // pagination math
+        const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+
+        const start = (currentPage - 1) * PAGE_SIZE;
+        const pageItems = filtered.slice(start, start + PAGE_SIZE);
+
+        // build rows for this page
+        pageItems.forEach(({ transfer: t, pattern }) => {
+          const tr = document.createElement("tr");
+
+          const amtTd = document.createElement("td");
+          amtTd.className = "amount";
+          const amtNum = Number(t.amount || 0);
+          amtTd.textContent = amtNum.toFixed(4);
+          tr.appendChild(amtTd);
+
+          const tokenTd = document.createElement("td");
+          tokenTd.textContent = t.token_symbol || "ETH";
+          tr.appendChild(tokenTd);
+
+          const fromTd = document.createElement("td");
+          fromTd.className = "address";
+          if (t.from_address) {
+            const a = document.createElement("a");
+            a.href = "https://etherscan.io/address/" + t.from_address;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.className = "addr-link";
+            a.textContent = shortenAddress(t.from_address);
+            a.addEventListener("click", (e) => {
+              e.preventDefault();
+              selectWallet(t.from_address);
+            });
+            fromTd.appendChild(a);
+          }
+          tr.appendChild(fromTd);
+
+          const toTd = document.createElement("td");
+          toTd.className = "address";
+          if (t.to_address) {
+            const a = document.createElement("a");
+            a.href = "https://etherscan.io/address/" + t.to_address;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.className = "addr-link";
+            a.textContent = shortenAddress(t.to_address);
+            a.addEventListener("click", (e) => {
+              e.preventDefault();
+              selectWallet(t.to_address);
+            });
+            toTd.appendChild(a);
+          }
+          tr.appendChild(toTd);
+
+          const patternTd = document.createElement("td");
+          const chip = document.createElement("span");
+          chip.className = "chip";
+          chip.textContent = pattern.label;
+          chip.title = pattern.title;
+          patternTd.appendChild(chip);
+          tr.appendChild(patternTd);
+
+          const blockTd = document.createElement("td");
+          blockTd.textContent = t.block_number ?? "";
+          tr.appendChild(blockTd);
+
+          const obsTd = document.createElement("td");
+          obsTd.textContent = formatIso(t.observed_at);
+          tr.appendChild(obsTd);
+
+          tbodyEl.appendChild(tr);
+        });
 
         loadingEl.style.display = "none";
-        updateMetricsCard?.();
-        selectedWallet = null;
-        selectWallet(null);
+        tableEl.style.display = "table";
 
-        // render first page
-        renderWhaleTable();
-      } catch (err) {
-        console.error(err);
-        loadingEl.style.display = "none";
-        errEl.textContent = "Could not load whale transfers.";
-        errEl.style.display = "block";
-      }
-    }
+        // update pagination UI
+        if (paginationEl && pageInfoEl && prevBtn && nextBtn) {
+          paginationEl.style.display = "flex";
+          pageInfoEl.textContent = `Page ${currentPage} / ${totalPages}`;
 
-    function renderWhaleTable() {
-      const tableEl = document.getElementById("whale-table");
-      const tbodyEl = document.getElementById("whale-tbody");
-      const loadingEl = document.getElementById("table-loading");
-      const errEl = document.getElementById("table-error");
-      const patternSelect = document.getElementById("filter-pattern");
-
-      const paginationEl = document.getElementById("pagination");
-      const pageInfoEl = document.getElementById("page-info");
-      const prevBtn = document.getElementById("page-prev");
-      const nextBtn = document.getElementById("page-next");
-
-      tbodyEl.innerHTML = "";
-      errEl.style.display = "none";
-
-      if (!currentTransfers || currentTransfers.length === 0) {
-        tableEl.style.display = "none";
-        if (paginationEl) paginationEl.style.display = "none";
-        return;
-      }
-
-      const patternFilter = (patternSelect && patternSelect.value) || "all";
-
-      // enrich with pattern labels
-      const enriched = currentTransfers.map((t) => {
-        const pattern = classifyPatternForTransfer(t, currentWalletStats || {});
-        return { transfer: t, pattern };
-      });
-
-      // apply pattern filter
-      const filtered = enriched.filter((row) => {
-        if (patternFilter === "all") return true;
-        return row.pattern.label === patternFilter;
-      });
-
-      if (filtered.length === 0) {
-        tableEl.style.display = "none";
-        loadingEl.style.display = "block";
-        loadingEl.textContent = "No transfers match the current filters.";
-        if (paginationEl) paginationEl.style.display = "none";
-        return;
-      }
-
-      // pagination math
-      const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-      if (currentPage > totalPages) currentPage = totalPages;
-      if (currentPage < 1) currentPage = 1;
-
-      const start = (currentPage - 1) * PAGE_SIZE;
-      const pageItems = filtered.slice(start, start + PAGE_SIZE);
-
-      // build rows for this page
-      pageItems.forEach(({ transfer: t, pattern }) => {
-        const tr = document.createElement("tr");
-
-        const amtTd = document.createElement("td");
-        amtTd.className = "amount";
-        const amtNum = Number(t.amount || 0);
-        amtTd.textContent = amtNum.toFixed(4);
-        tr.appendChild(amtTd);
-
-        const tokenTd = document.createElement("td");
-        tokenTd.textContent = t.token_symbol || "ETH";
-        tr.appendChild(tokenTd);
-
-        const fromTd = document.createElement("td");
-        fromTd.className = "address";
-        if (t.from_address) {
-          const a = document.createElement("a");
-          a.href = "https://etherscan.io/address/" + t.from_address;
-          a.target = "_blank";
-          a.rel = "noopener noreferrer";
-          a.className = "addr-link";
-          a.textContent = shortenAddress(t.from_address);
-          a.addEventListener("click", (e) => {
-            e.preventDefault();
-            selectWallet(t.from_address);
-          });
-          fromTd.appendChild(a);
+          prevBtn.disabled = currentPage <= 1;
+          nextBtn.disabled = currentPage >= totalPages;
+          prevBtn.style.opacity = prevBtn.disabled ? 0.5 : 1;
+          nextBtn.style.opacity = nextBtn.disabled ? 0.5 : 1;
         }
-        tr.appendChild(fromTd);
-
-        const toTd = document.createElement("td");
-        toTd.className = "address";
-        if (t.to_address) {
-          const a = document.createElement("a");
-          a.href = "https://etherscan.io/address/" + t.to_address;
-          a.target = "_blank";
-          a.rel = "noopener noreferrer";
-          a.className = "addr-link";
-          a.textContent = shortenAddress(t.to_address);
-          a.addEventListener("click", (e) => {
-            e.preventDefault();
-            selectWallet(t.to_address);
-          });
-          toTd.appendChild(a);
-        }
-        tr.appendChild(toTd);
-
-        const patternTd = document.createElement("td");
-        const chip = document.createElement("span");
-        chip.className = "chip";
-        chip.textContent = pattern.label;
-        chip.title = pattern.title;
-        patternTd.appendChild(chip);
-        tr.appendChild(patternTd);
-
-        const blockTd = document.createElement("td");
-        blockTd.textContent = t.block_number ?? "";
-        tr.appendChild(blockTd);
-
-        const obsTd = document.createElement("td");
-        obsTd.textContent = formatIso(t.observed_at);
-        tr.appendChild(obsTd);
-
-        tbodyEl.appendChild(tr);
-      });
-
-      loadingEl.style.display = "none";
-      tableEl.style.display = "table";
-
-      // update pagination UI
-      if (paginationEl && pageInfoEl && prevBtn && nextBtn) {
-        paginationEl.style.display = "flex";
-        pageInfoEl.textContent = `Page ${currentPage} / ${totalPages}`;
-
-        prevBtn.disabled = currentPage <= 1;
-        nextBtn.disabled = currentPage >= totalPages;
-        prevBtn.style.opacity = prevBtn.disabled ? 0.5 : 1;
-        nextBtn.style.opacity = nextBtn.disabled ? 0.5 : 1;
       }
-    }
-
 
       async function sendChatQuestion() {
         const inputEl = document.getElementById("chat-input");
@@ -1053,75 +1179,75 @@
       // Load both on page load
       window.addEventListener("load", () => {
         const reportButton = document.getElementById("report-generate");
-      const reportStatus = document.getElementById("report-status");
-      const reportBody = document.getElementById("report-body");
-      const applyBtn = document.getElementById("filter-apply");
-      const minAmountInput = document.getElementById("filter-min-amount");
-      const patternSelect = document.getElementById("filter-pattern");
-      const prevBtn = document.getElementById("page-prev");
-      const nextBtn = document.getElementById("page-next");
-      const chatButton = document.getElementById("chat-submit");
+        const reportStatus = document.getElementById("report-status");
+        const reportBody = document.getElementById("report-body");
+        const applyBtn = document.getElementById("filter-apply");
+        const minAmountInput = document.getElementById("filter-min-amount");
+        const patternSelect = document.getElementById("filter-pattern");
+        const prevBtn = document.getElementById("page-prev");
+        const nextBtn = document.getElementById("page-next");
+        const chatButton = document.getElementById("chat-submit");
         const chatInput = document.getElementById("chat-input");
 
-      if (reportButton && reportBody && reportStatus) {
-        reportButton.addEventListener("click", () => {
-          // simple UX: show "building", then populate
-          reportStatus.style.display = "inline";
-          reportBody.style.display = "none";
+        if (reportButton && reportBody && reportStatus) {
+          reportButton.addEventListener("click", () => {
+            // simple UX: show "building", then populate
+            reportStatus.style.display = "inline";
+            reportBody.style.display = "none";
 
-          // no async needed; everything is local
-          const text = buildSnapshotReport();
-          reportBody.textContent = text;
+            // no async needed; everything is local
+            const text = buildSnapshotReport();
+            reportBody.textContent = text;
 
-          reportStatus.style.display = "none";
-          reportBody.style.display = "block";
-        });
-      }
+            reportStatus.style.display = "none";
+            reportBody.style.display = "block";
+          });
+        }
         loadSummary();
         loadWhales();
         if (applyBtn) {
-            applyBtn.addEventListener("click", () => {
+          applyBtn.addEventListener("click", () => {
             loadWhales();
-            });
+          });
         }
 
         if (applyBtn) {
-        applyBtn.addEventListener("click", () => {
-          loadWhales();            // refetch from backend
-        });
-      }
+          applyBtn.addEventListener("click", () => {
+            loadWhales(); // refetch from backend
+          });
+        }
 
-      if (minAmountInput) {
-        minAmountInput.addEventListener("keydown", (e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            loadWhales();          // new min amount => new snapshot
-          }
-        });
-      }
+        if (minAmountInput) {
+          minAmountInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              loadWhales(); // new min amount => new snapshot
+            }
+          });
+        }
 
-      if (patternSelect) {
-        patternSelect.addEventListener("change", () => {
-          currentPage = 1;         // reset to first page
-          renderWhaleTable();      // no refetch needed; just re-slice
-        });
-      }
+        if (patternSelect) {
+          patternSelect.addEventListener("change", () => {
+            currentPage = 1; // reset to first page
+            renderWhaleTable(); // no refetch needed; just re-slice
+          });
+        }
 
-      if (prevBtn) {
-        prevBtn.addEventListener("click", () => {
-          if (currentPage > 1) {
-            currentPage -= 1;
+        if (prevBtn) {
+          prevBtn.addEventListener("click", () => {
+            if (currentPage > 1) {
+              currentPage -= 1;
+              renderWhaleTable();
+            }
+          });
+        }
+
+        if (nextBtn) {
+          nextBtn.addEventListener("click", () => {
+            currentPage += 1;
             renderWhaleTable();
-          }
-        });
-      }
-
-      if (nextBtn) {
-        nextBtn.addEventListener("click", () => {
-          currentPage += 1;      
-          renderWhaleTable();
-        });
-      }
+          });
+        }
 
         if (chatButton) {
           chatButton.addEventListener("click", sendChatQuestion);
