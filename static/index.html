@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Whale Watch</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #050816;
+      color: #e5e7eb;
+    }
+
+    .page {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: #9ca3af;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: rgba(17, 24, 39, 0.95);
+      border-radius: 16px;
+      padding: 16px 18px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(55, 65, 81, 0.8);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.45);
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.15);
+      color: #7dd3fc;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+    }
+
+    .summary-text {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #d1d5db;
+      white-space: pre-wrap;
+    }
+
+    .summary-meta {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead {
+      background: rgba(17, 24, 39, 0.95);
+    }
+
+    th, td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(31, 41, 55, 0.9);
+    }
+
+    th {
+      font-weight: 500;
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    tr:nth-child(even) td {
+      background: rgba(15, 23, 42, 0.7);
+    }
+
+    .amount {
+      font-variant-numeric: tabular-nums;
+      font-weight: 500;
+      color: #a5b4fc;
+    }
+
+    .address {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+    }
+
+    a.addr-link {
+      color: #6ee7b7;
+      text-decoration: none;
+    }
+
+    a.addr-link:hover {
+      text-decoration: underline;
+    }
+
+    .chip {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(79, 70, 229, 0.25);
+      color: #c4b5fd;
+      border: 1px solid rgba(129, 140, 248, 0.6);
+    }
+
+    .error {
+      color: #fb7185;
+      font-size: 13px;
+      margin-top: 6px;
+    }
+
+    .loading {
+      font-size: 13px;
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>AI Whale Watch</h1>
+    <div class="subtitle">
+      Real Ethereum whale transfers &amp; AI commentary (mini Tie-style prototype).
+    </div>
+
+    <!-- AI summary card -->
+    <div class="card" id="summary-card">
+      <div class="card-title">
+        Market Snapshot
+        <span class="badge">AI analysis</span>
+      </div>
+      <div id="summary-loading" class="loading">Loading summary…</div>
+      <div id="summary-text" class="summary-text" style="display: none;"></div>
+      <div id="summary-meta" class="summary-meta" style="display: none;"></div>
+      <div id="summary-error" class="error" style="display: none;"></div>
+    </div>
+
+        <!-- Wallet drill-down -->
+        <div class="card" id="wallet-card">
+            <div class="card-title" style="margin-bottom: 8px;">
+              Wallet Drill-down
+              <span class="badge">Per-wallet view</span>
+            </div>
+            <div id="wallet-empty" class="loading">
+              Click a wallet address in the table to see its flow profile in this snapshot.
+            </div>
+            <div id="wallet-body" style="display: none; font-size: 13px; color: #d1d5db;">
+              <div style="margin-bottom: 8px; font-size: 12px; color: #9ca3af;">
+                Snapshot based on the current set of whale transfers only (not full on-chain history).
+              </div>
+              <div style="margin-bottom: 8px;">
+                <div style="font-size: 11px; color: #9ca3af;">Selected wallet</div>
+                <div id="wallet-address" class="address" style="font-size: 12px;"></div>
+              </div>
+              <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px;">
+                <div>
+                  <div style="font-size: 11px; color: #9ca3af;">Total inflow</div>
+                  <div id="wallet-inflow" style="font-weight: 600;">–</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: #9ca3af;">Total outflow</div>
+                  <div id="wallet-outflow" style="font-weight: 600;">–</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: #9ca3af;">Net flow</div>
+                  <div id="wallet-net" style="font-weight: 600;">–</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: #9ca3af;">Transfers involving wallet</div>
+                  <div id="wallet-txcount" style="font-weight: 600;">–</div>
+                </div>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: #9ca3af;">Role in this flow window</div>
+                <div id="wallet-role" style="font-weight: 600; font-size: 13px;"></div>
+              </div>
+            </div>
+            <div id="wallet-error" class="error" style="display: none;"></div>
+          </div>      
+
+        <!-- Ask AI about these flows -->
+        <div class="card">
+            <div class="card-title" style="margin-bottom: 8px;">
+              Ask AI about these flows
+              <span class="badge">Q&A</span>
+            </div>
+            <div style="margin-bottom: 8px; font-size: 12px; color: #9ca3af;">
+              Ask questions like: “Why are there so many transfers from this wallet?” or
+              “Does this look like exchange activity or internal treasury moves?”
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <textarea
+                id="chat-input"
+                rows="3"
+                placeholder="Type your question about these whale transfers…"
+                style="resize: vertical; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(55,65,81,0.9); background: rgba(15,23,42,0.9); color: #e5e7eb; font-size: 13px; font-family: inherit;"
+              ></textarea>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <button
+                  id="chat-submit"
+                  style="padding: 6px 14px; border-radius: 999px; border: none; font-size: 13px; font-weight: 500; cursor: pointer; background: linear-gradient(135deg, #4f46e5, #06b6d4); color: white; box-shadow: 0 8px 25px rgba(15,23,42,0.7);"
+                >
+                  Ask AI
+                </button>
+                <span id="chat-status" class="loading" style="display: none;">Thinking…</span>
+              </div>
+              <div id="chat-answer" class="summary-text" style="display: none; border-top: 1px solid rgba(55,65,81,0.7); padding-top: 8px;"></div>
+              <div id="chat-error" class="error" style="display: none;"></div>
+            </div>
+          </div>      
+
+    <!-- Whale transfers table -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom: 10px;">
+        Recent Whale Transfers
+        <span class="chip">ETH &ge; 100</span>
+      </div>
+      <div id="table-loading" class="loading">Loading whale transfers…</div>
+      <div id="table-error" class="error" style="display: none;"></div>
+      <div style="overflow-x: auto;">
+        <table id="whale-table" style="display: none;">
+          <thead>
+            <tr>
+              <th>Amount</th>
+              <th>Token</th>
+              <th>From</th>
+              <th>To</th>
+              <th>Block</th>
+              <th>Observed</th>
+            </tr>
+          </thead>
+          <tbody id="whale-tbody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentTransfers = [];
+    let selectedWallet = null;
+    function shortenAddress(addr) {
+      if (!addr || addr.length < 10) return addr || "";
+      return addr.slice(0, 6) + "..." + addr.slice(-4);
+    }
+
+    function formatIso(iso) {
+      if (!iso) return "";
+      // basic trimming: "2025-11-27T00:18:28.376000Z" -> "2025-11-27 00:18:28"
+      return iso.replace("T", " ").replace("Z", "").split(".")[0];
+    }
+
+    async function loadSummary() {
+      const loadingEl = document.getElementById("summary-loading");
+      const textEl = document.getElementById("summary-text");
+      const metaEl = document.getElementById("summary-meta");
+      const errEl = document.getElementById("summary-error");
+
+      loadingEl.style.display = "block";
+      textEl.style.display = "none";
+      metaEl.style.display = "none";
+      errEl.style.display = "none";
+
+      try {
+        const res = await fetch("/alerts/summary");
+        if (!res.ok) {
+          throw new Error("HTTP " + res.status);
+        }
+        const data = await res.json();
+        textEl.textContent = data.summary || "No summary available.";
+        metaEl.textContent = `Based on ${data.transfer_count ?? 0} recent transfers.`;
+        loadingEl.style.display = "none";
+        textEl.style.display = "block";
+        metaEl.style.display = "block";
+      } catch (err) {
+        console.error(err);
+        loadingEl.style.display = "none";
+        errEl.textContent = "Could not load AI summary.";
+        errEl.style.display = "block";
+      }
+    }
+
+    async function loadWhales() {
+      const loadingEl = document.getElementById("table-loading");
+      const tableEl = document.getElementById("whale-table");
+      const tbodyEl = document.getElementById("whale-tbody");
+      const errEl = document.getElementById("table-error");
+
+      loadingEl.style.display = "block";
+      tableEl.style.display = "none";
+      errEl.style.display = "none";
+      tbodyEl.innerHTML = "";
+
+      try {
+        const res = await fetch("/alerts/latest");
+        if (!res.ok) {
+          throw new Error("HTTP " + res.status);
+        }
+        const data = await res.json();
+        const rows = data.transfers || [];
+
+        currentTransfers = rows;
+
+        if (rows.length === 0) {
+            loadingEl.textContent = "No large ETH transfers found right now.";
+            selectWallet(null);
+            return;
+        }
+        rows.forEach(t => {
+          const tr = document.createElement("tr");
+
+          const amountTd = document.createElement("td");
+          amountTd.className = "amount";
+          amountTd.textContent = t.amount.toFixed ? t.amount.toFixed(4) : t.amount;
+          tr.appendChild(amountTd);
+
+          const tokenTd = document.createElement("td");
+          tokenTd.textContent = t.token_symbol || "ETH";
+          tr.appendChild(tokenTd);
+
+          const fromTd = document.createElement("td");
+          fromTd.className = "address";
+          if (t.from_address) {
+            const a = document.createElement("a");
+            a.href = "https://etherscan.io/address/" + t.from_address;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.className = "addr-link";
+            a.textContent = shortenAddress(t.from_address);
+
+            // when clicked, also update wallet drill-down
+            a.addEventListener("click", (e) => {
+              e.preventDefault();
+              selectWallet(t.from_address);
+            });
+
+            fromTd.appendChild(a);
+          }
+          tr.appendChild(fromTd);
+
+          const toTd = document.createElement("td");
+            toTd.className = "address";
+            if (t.to_address) {
+            const a = document.createElement("a");
+            a.href = "https://etherscan.io/address/" + t.to_address;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.className = "addr-link";
+            a.textContent = shortenAddress(t.to_address);
+
+            // 🔹 when clicked, also update wallet drill-down
+            a.addEventListener("click", () => {
+                e.preventDefault();
+                selectWallet(t.to_address);
+            });
+
+            toTd.appendChild(a);
+            }
+            tr.appendChild(toTd);
+
+          const blockTd = document.createElement("td");
+          blockTd.textContent = t.block_number ?? "";
+          tr.appendChild(blockTd);
+
+          const obsTd = document.createElement("td");
+          obsTd.textContent = formatIso(t.observed_at);
+          tr.appendChild(obsTd);
+
+          tbodyEl.appendChild(tr);
+        });
+
+        loadingEl.style.display = "none";
+        tableEl.style.display = "table";
+        // 🔹 reset drill-down hint on each new data load
+        selectedWallet = null;
+        selectWallet(null);
+
+      } catch (err) {
+        console.error(err);
+        loadingEl.style.display = "none";
+        errEl.textContent = "Could not load whale transfers.";
+        errEl.style.display = "block";
+      }
+    }
+
+    async function sendChatQuestion() {
+      const inputEl = document.getElementById("chat-input");
+      const statusEl = document.getElementById("chat-status");
+      const answerEl = document.getElementById("chat-answer");
+      const errEl = document.getElementById("chat-error");
+
+      const question = (inputEl.value || "").trim();
+      if (!question) {
+        errEl.textContent = "Please type a question first.";
+        errEl.style.display = "block";
+        answerEl.style.display = "none";
+        return;
+      }
+
+      // reset states
+      errEl.style.display = "none";
+      answerEl.style.display = "none";
+      statusEl.style.display = "inline";
+
+      try {
+        const res = await fetch("/alerts/chat?limit=20", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ question }),
+        });
+
+        if (!res.ok) {
+          throw new Error("HTTP " + res.status);
+        }
+
+        const data = await res.json();
+        answerEl.textContent = data.answer || "No answer returned.";
+        answerEl.style.display = "block";
+      } catch (err) {
+        console.error(err);
+        errEl.textContent = "Could not get an answer from AI.";
+        errEl.style.display = "block";
+      } finally {
+        statusEl.style.display = "none";
+      }
+    }
+
+    function selectWallet(address) {
+      const emptyEl = document.getElementById("wallet-empty");
+      const bodyEl = document.getElementById("wallet-body");
+      const errEl = document.getElementById("wallet-error");
+
+      const addrEl = document.getElementById("wallet-address");
+      const inflowEl = document.getElementById("wallet-inflow");
+      const outflowEl = document.getElementById("wallet-outflow");
+      const netEl = document.getElementById("wallet-net");
+      const txCountEl = document.getElementById("wallet-txcount");
+      const roleEl = document.getElementById("wallet-role");
+
+      errEl.style.display = "none";
+
+      if (!address) {
+        emptyEl.style.display = "block";
+        bodyEl.style.display = "none";
+        return;
+      }
+
+      selectedWallet = address;
+
+      if (!currentTransfers || currentTransfers.length === 0) {
+        errEl.textContent = "No whale data available to analyze this wallet.";
+        errEl.style.display = "block";
+        return;
+      }
+
+      let inflow = 0;
+      let outflow = 0;
+      let count = 0;
+
+      // collect all transfers where this wallet is either from or to
+      currentTransfers.forEach(t => {
+        const amt = Number(t.amount || 0);
+        if (t.to_address === address) {
+          inflow += amt;
+          count += 1;
+        }
+        if (t.from_address === address) {
+          outflow += amt;
+          count += 1;
+        }
+      });
+
+      emptyEl.style.display = "none";
+      bodyEl.style.display = "block";
+
+      // replace text with a clickable Etherscan link
+    addrEl.innerHTML = "";
+    const link = document.createElement("a");
+    link.href = "https://etherscan.io/address/" + address;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.className = "addr-link";
+    link.textContent = address;
+    addrEl.appendChild(link);
+
+      inflowEl.textContent = inflow.toFixed(4) + " ETH";
+      outflowEl.textContent = outflow.toFixed(4) + " ETH";
+
+      const net = inflow - outflow;
+      const sign = net > 0 ? "+" : net < 0 ? "−" : "";
+      netEl.textContent = sign + Math.abs(net).toFixed(4) + " ETH";
+
+      txCountEl.textContent = count.toString();
+
+      // simple heuristic role label
+      let role = "Balanced activity / internal routing";
+      if (inflow > outflow * 1.2) {
+        role = "Net receiver (accumulator) in this snapshot";
+      } else if (outflow > inflow * 1.2) {
+        role = "Net sender (distributor) in this snapshot";
+      }
+
+      roleEl.textContent = role;
+    }
+
+    // Load both on page load
+    window.addEventListener("load", () => {
+      loadSummary();
+      loadWhales();
+      const chatButton = document.getElementById("chat-submit");
+      const chatInput = document.getElementById("chat-input");
+
+      if (chatButton) {
+        chatButton.addEventListener("click", sendChatQuestion);
+      }
+
+      if (chatInput) {
+        chatInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            // Cmd+Enter or Ctrl+Enter to send
+            e.preventDefault();
+            sendChatQuestion();
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>
