@@ -163,6 +163,65 @@
         gap: 12px;
       }
 
+            /* Floating chat widget */
+            .chat-widget {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        z-index: 50;
+      }
+
+      .chat-fab {
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: none;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        background: linear-gradient(135deg, #4f46e5, #06b6d4);
+        color: white;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.9);
+      }
+
+      .chat-panel {
+        position: fixed;
+        right: 20px;
+        bottom: 60px;
+        width: 320px;
+        max-height: 60vh;
+        background: rgba(15, 23, 42, 0.98);
+        border-radius: 16px;
+        border: 1px solid rgba(55, 65, 81, 0.9);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+        display: none;
+        padding: 12px 14px;
+        font-size: 13px;
+        color: #e5e7eb;
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .chat-panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+
+      .chat-panel-title {
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .chat-panel-close {
+        border: none;
+        background: transparent;
+        color: #9ca3af;
+        font-size: 16px;
+        cursor: pointer;
+      }
+
       /* Make it stack on small screens */
       @media (max-width: 900px) {
         .layout {
@@ -531,19 +590,25 @@
               "
             ></div>
           </div>
-
-          <!-- Ask AI about these flows (only ONCE) -->
-          <div class="card">
-            <div class="card-title" style="margin-bottom: 8px">
-              Ask AI about these flows
-              <span class="badge">Q&amp;A</span>
-            </div>
-            <div style="margin-bottom: 8px; font-size: 12px; color: #9ca3af">
-              Ask questions like: “Why are there so many transfers from this
-              wallet?” or “Does this look like exchange activity or internal
-              treasury moves?”
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 8px">
+        </div>
+      </div>
+    </div>
+        <!-- Floating Ask AI widget -->
+        <div class="chat-widget">
+            <button class="chat-fab" id="chat-toggle">
+              💬 Ask AI about these flows
+            </button>
+      
+            <div class="chat-panel" id="chat-panel">
+              <div class="chat-panel-header">
+                <div class="chat-panel-title">Ask AI about these flows</div>
+                <button class="chat-panel-close" id="chat-close">&times;</button>
+              </div>
+              <div style="font-size: 12px; color: #9ca3af; margin-bottom: 4px;">
+                Ask things like: “Is this whale accumulating?” or
+                “Does this look like exchange flow?”
+              </div>
+      
               <textarea
                 id="chat-input"
                 rows="3"
@@ -559,7 +624,8 @@
                   font-family: inherit;
                 "
               ></textarea>
-              <div style="display: flex; align-items: center; gap: 10px">
+      
+              <div style="display: flex; align-items: center; gap: 10px;">
                 <button
                   id="chat-submit"
                   style="
@@ -576,10 +642,11 @@
                 >
                   Ask AI
                 </button>
-                <span id="chat-status" class="loading" style="display: none"
-                  >Thinking…</span
-                >
+                <span id="chat-status" class="loading" style="display: none;">
+                  Thinking…
+                </span>
               </div>
+      
               <div
                 id="chat-answer"
                 class="summary-text"
@@ -589,12 +656,9 @@
                   padding-top: 8px;
                 "
               ></div>
-              <div id="chat-error" class="error" style="display: none"></div>
+              <div id="chat-error" class="error" style="display: none;"></div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
+          </div>      
     <script>
       let currentTransfers = [];
       let selectedWallet = null;
@@ -1188,6 +1252,26 @@
         const nextBtn = document.getElementById("page-next");
         const chatButton = document.getElementById("chat-submit");
         const chatInput = document.getElementById("chat-input");
+        const chatToggle = document.getElementById("chat-toggle");
+        const chatPanel = document.getElementById("chat-panel");
+        const chatClose = document.getElementById("chat-close");
+
+        if (chatToggle && chatPanel) {
+          chatToggle.addEventListener("click", () => {
+            const isOpen = chatPanel.style.display === "flex";
+            if (isOpen) {
+              chatPanel.style.display = "none";
+            } else {
+              chatPanel.style.display = "flex";
+            }
+          });
+        }
+
+        if (chatClose && chatPanel) {
+          chatClose.addEventListener("click", () => {
+            chatPanel.style.display = "none";
+          });
+        }
 
         if (reportButton && reportBody && reportStatus) {
           reportButton.addEventListener("click", () => {
