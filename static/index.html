@@ -220,6 +220,30 @@
         <div id="summary-error" class="error" style="display: none"></div>
       </div>
 
+          <!-- Research note / mini report -->
+    <div class="card" id="report-card">
+        <div class="card-title" style="margin-bottom: 8px;">
+          Research Note
+          <span class="badge">Snapshot report</span>
+        </div>
+        <div style="margin-bottom: 8px; font-size: 12px; color: #9ca3af;">
+          Generates a structured note you could share with a PM or in a research channel,
+          based on the current whale snapshot and AI summary.
+        </div>
+        <button
+          id="report-generate"
+          style="padding: 6px 14px; border-radius: 999px; border: none; font-size: 13px; font-weight: 500; cursor: pointer; background: linear-gradient(135deg, #4b5563, #0ea5e9); color: white; margin-bottom: 10px; box-shadow: 0 6px 20px rgba(15,23,42,0.7);"
+        >
+          Generate snapshot note
+        </button>
+        <span id="report-status" class="loading" style="display: none;">Building note…</span>
+  
+        <div
+          id="report-body"
+          style="display: none; margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(15,23,42,0.9); font-size: 13px; line-height: 1.5; color: #e5e7eb; white-space: pre-wrap;"
+        ></div>
+      </div>  
+
       <!-- Wallet drill-down -->
       <div class="card" id="wallet-card">
         <div class="card-title" style="margin-bottom: 8px">
@@ -477,6 +501,83 @@
           });
         }
       }
+
+      function buildSnapshotReport() {
+      // We’ll pull metrics from the DOM + currentTransfers + summary text
+      const summaryTextEl = document.getElementById("summary-text");
+      const volumeEl = document.getElementById("metric-volume");
+      const largestEl = document.getElementById("metric-largest");
+      const uniqEl = document.getElementById("metric-unique-wallets");
+      const concEl = document.getElementById("metric-concentration");
+
+      const summary = (summaryTextEl && summaryTextEl.textContent.trim())
+        ? summaryTextEl.textContent.trim()
+        : "No AI summary available for this snapshot.";
+
+      const totalVol = volumeEl ? volumeEl.textContent.trim() : "n/a";
+      const largest = largestEl ? largestEl.textContent.trim() : "n/a";
+      const uniq = uniqEl ? uniqEl.textContent.trim() : "n/a";
+      const conc = concEl ? concEl.textContent.trim() : "n/a";
+
+      const now = new Date();
+      const isoDate = now.toISOString().split("T")[0];
+      const timeStr = now.toISOString().split("T")[1].split(".")[0] + " UTC";
+
+      // Build top wallets section (reuse Flow Intelligence logic)
+      const walletVolumes = new Map();
+      (currentTransfers || []).forEach(t => {
+        const amt = Number(t.amount || 0);
+        if (t.from_address) {
+          walletVolumes.set(
+            t.from_address,
+            (walletVolumes.get(t.from_address) || 0) + amt
+          );
+        }
+        if (t.to_address) {
+          walletVolumes.set(
+            t.to_address,
+            (walletVolumes.get(t.to_address) || 0) + amt
+          );
+        }
+      });
+
+      const sorted = Array.from(walletVolumes.entries()).sort((a, b) => b[1] - a[1]);
+      const top3 = sorted.slice(0, 3);
+
+      let topWalletLines = "None.";
+      if (top3.length > 0) {
+        topWalletLines = top3
+          .map(([addr, vol], idx) =>
+            `${idx + 1}. ${shortenAddress(addr)} – ${vol.toFixed(2)} ETH`
+          )
+          .join("\n");
+      }
+
+      const reportLines = [
+        `ETH Whale Flow Snapshot – ${isoDate} (${timeStr})`,
+        "",
+        `1) Executive Summary (AI)`,
+        summary,
+        "",
+        `2) Flow Metrics`,
+        `• Total volume: ${totalVol}`,
+        `• Largest transfer: ${largest}`,
+        `• Unique wallets in this snapshot: ${uniq}`,
+        `• Concentration: ${conc}`,
+        "",
+        `3) Top Whale Wallets (by volume in this snapshot)`,
+        topWalletLines,
+        "",
+        `4) Analyst Notes`,
+        `This note is generated from a single snapshot of large ETH transfers.`,
+        `For production use, it would be extended with:`,
+        `• wallet labels (exchanges, treasuries, funds)`,
+        `• longer lookback windows and historical context`,
+        `• sentiment / price context (e.g., Tie sentiment scores vs whale behavior).`,
+      ];
+
+      return reportLines.join("\n");
+    }
 
       async function loadSummary() {
         const loadingEl = document.getElementById("summary-loading");
@@ -741,8 +842,6 @@
         let inflow = 0;
         let outflow = 0;
         let count = 0;
-
-        // collect all transfers where this wallet is either from or to
         currentTransfers.forEach((t) => {
           const amt = Number(t.amount || 0);
           if (t.to_address === address) {
@@ -757,8 +856,6 @@
 
         emptyEl.style.display = "none";
         bodyEl.style.display = "block";
-
-        // replace text with a clickable Etherscan link
         addrEl.innerHTML = "";
         const link = document.createElement("a");
         link.href = "https://etherscan.io/address/" + address;
@@ -790,6 +887,24 @@
 
       // Load both on page load
       window.addEventListener("load", () => {
+        const reportButton = document.getElementById("report-generate");
+      const reportStatus = document.getElementById("report-status");
+      const reportBody = document.getElementById("report-body");
+
+      if (reportButton && reportBody && reportStatus) {
+        reportButton.addEventListener("click", () => {
+          // simple UX: show "building", then populate
+          reportStatus.style.display = "inline";
+          reportBody.style.display = "none";
+
+          // no async needed; everything is local
+          const text = buildSnapshotReport();
+          reportBody.textContent = text;
+
+          reportStatus.style.display = "none";
+          reportBody.style.display = "block";
+        });
+      }
         loadSummary();
         loadWhales();
         const chatButton = document.getElementById("chat-submit");
@@ -802,7 +917,6 @@
         if (chatInput) {
           chatInput.addEventListener("keydown", (e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-              // Cmd+Enter or Ctrl+Enter to send
               e.preventDefault();
               sendChatQuestion();
             }
