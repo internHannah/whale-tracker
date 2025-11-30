@@ -171,6 +171,13 @@
         }
       }
 
+      .table-container {
+  max-height: 420px;       /* tweak this number to taste */
+  overflow-y: auto;        /* vertical scroll */
+  overflow-x: auto;        /* horizontal if needed */
+  border-radius: 10px;
+}
+
       /* Tabs for AI Whale Intelligence panel */
       .tab-header {
         display: inline-flex;
@@ -206,23 +213,33 @@
 
       /* Pagination */
       #pagination {
-        margin-top: 8px;
-        font-size: 12px;
-        color: #9ca3af;
-        display: none;
-        justify-content: flex-end;
-        align-items: center;
-        gap: 8px;
-      }
+  margin-top: 8px;
+  font-size: 12px;
+  color: #9ca3af;
+  display: none;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
 
-      #pagination button {
-        padding: 3px 8px;
-        border-radius: 999px;
-        border: 1px solid rgba(75, 85, 99, 0.9);
-        background: rgba(15, 23, 42, 0.9);
-        color: #e5e7eb;
-        cursor: pointer;
-      }
+#pagination button {
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(75, 85, 99, 0.9);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  cursor: pointer;
+}
+
+.page-number-btn.active {
+  background: linear-gradient(135deg, #4f46e5, #0ea5e9);
+  color: white;
+}
+
+.page-ellipsis {
+  padding: 0 4px;
+  opacity: 0.65;
+}
 
       /* Floating chat widget */
       #chat-widget-bubble {
@@ -284,7 +301,7 @@
           <div class="card">
             <div class="card-title" style="margin-bottom: 6px">
               Recent Whale Transfers
-              <span class="chip">ETH ≥ 100</span>
+              <span class="chip">ETH (>100)</span>
             </div>
 
             <!-- Filters -->
@@ -356,7 +373,7 @@
               Loading whale transfers…
             </div>
             <div id="table-error" class="error" style="display: none"></div>
-            <div style="overflow-x: auto">
+            <div class="table-container">
               <table id="whale-table" style="display: none">
                 <thead>
                   <tr>
@@ -375,7 +392,7 @@
             <!-- Pagination -->
             <div id="pagination">
               <button id="page-prev">Prev</button>
-              <span id="page-info">Page 1 / 1</span>
+              <div id="page-numbers"></div>
               <button id="page-next">Next</button>
             </div>
           </div>
@@ -806,7 +823,8 @@
       let selectedWallet = null;
       let currentWalletStats = null;
       let currentPage = 1;
-      const PAGE_SIZE = 10;
+      let totalPages = 1;
+      const PAGE_SIZE = 20;
 
       function shortenAddress(addr) {
         if (!addr || addr.length < 10) return addr || "";
@@ -1195,6 +1213,74 @@ function printReportPdf() {
         }
       }
 
+      function renderPagination(total) {
+  const paginationEl = document.getElementById("pagination");
+  const numbersEl = document.getElementById("page-numbers");
+  const prevBtn = document.getElementById("page-prev");
+  const nextBtn = document.getElementById("page-next");
+
+  if (!paginationEl || !numbersEl || !prevBtn || !nextBtn) return;
+
+  totalPages = total;
+
+  if (totalPages <= 1) {
+    paginationEl.style.display = "none";
+    return;
+  }
+
+  paginationEl.style.display = "flex";
+
+  prevBtn.disabled = currentPage <= 1;
+  nextBtn.disabled = currentPage >= totalPages;
+  prevBtn.style.opacity = prevBtn.disabled ? 0.5 : 1;
+  nextBtn.style.opacity = nextBtn.disabled ? 0.5 : 1;
+
+  numbersEl.innerHTML = "";
+
+  function addPageButton(page) {
+    const btn = document.createElement("button");
+    btn.className = "page-number-btn";
+    btn.textContent = page;
+    if (page === currentPage) {
+      btn.classList.add("active");
+    }
+    btn.addEventListener("click", () => {
+      if (page === currentPage) return;
+      currentPage = page;
+      renderWhaleTable();
+    });
+    numbersEl.appendChild(btn);
+  }
+
+  function addEllipsis() {
+    const span = document.createElement("span");
+    span.className = "page-ellipsis";
+    span.textContent = "…";
+    numbersEl.appendChild(span);
+  }
+
+  if (totalPages <= 7) {
+    // Just show all pages
+    for (let p = 1; p <= totalPages; p++) addPageButton(p);
+    return;
+  }
+
+  // Always show first and last
+  addPageButton(1);
+
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+
+  if (start > 2) addEllipsis();
+
+  for (let p = start; p <= end; p++) addPageButton(p);
+
+  if (end < totalPages - 1) addEllipsis();
+
+  addPageButton(totalPages);
+}
+
+
       function renderWhaleTable() {
         const tableEl = document.getElementById("whale-table");
         const tbodyEl = document.getElementById("whale-tbody");
@@ -1314,16 +1400,7 @@ function printReportPdf() {
 
         loadingEl.style.display = "none";
         tableEl.style.display = "table";
-
-        if (paginationEl && pageInfoEl && prevBtn && nextBtn) {
-          paginationEl.style.display = "flex";
-          pageInfoEl.textContent = `Page ${currentPage} / ${totalPages}`;
-
-          prevBtn.disabled = currentPage <= 1;
-          nextBtn.disabled = currentPage >= totalPages;
-          prevBtn.style.opacity = prevBtn.disabled ? 0.5 : 1;
-          nextBtn.style.opacity = nextBtn.disabled ? 0.5 : 1;
-        }
+        renderPagination(totalPages);
       }
 
       /* ---------- WALLET DRILL-DOWN ---------- */
