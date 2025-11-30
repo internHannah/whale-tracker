@@ -231,9 +231,10 @@
   cursor: pointer;
 }
 
-.page-number-btn.active {
+#pagination .page-number-btn.active {
   background: linear-gradient(135deg, #4f46e5, #0ea5e9);
   color: white;
+  border-color: transparent;
 }
 
 .page-ellipsis {
@@ -317,7 +318,7 @@
               "
             >
               <div>
-                <span>Min amount (ETH): </span>
+                <span>Min amount: </span>
                 <input
                   id="filter-min-amount"
                   type="number"
