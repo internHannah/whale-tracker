@@ -354,6 +354,43 @@
         color: #ffffff;
         border-color: transparent;
       }
+
+      .refresh-container {
+  position: absolute;
+  top: 60px;       /* tweak to line up how you like */
+  right: 24px;
+  width: 220px;
+  text-align: left;
+  color: #e5e7eb;
+  font-size: 12px;
+}
+
+.refresh-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.refresh-select {
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(55, 65, 81, 0.9);
+  background: rgba(15, 23, 42, 0.95);
+  color: #e5e7eb;
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .refresh-container {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
+  }
+}
     </style>
   </head>
   <body>
@@ -457,21 +494,19 @@
                 </button>
               </div>
 
-              <button
-                id="filter-apply"
-                style="
-                  padding: 4px 12px;
-                  border-radius: 999px;
-                  border: none;
-                  font-size: 12px;
-                  font-weight: 500;
-                  cursor: pointer;
-                  background: linear-gradient(135deg, #4b5563, #0ea5e9);
-                  color: white;
-                "
-              >
-                Apply
-              </button>
+              <div class="refresh-container">
+                <label for="refresh-select" class="refresh-label">
+                  <span>Live Refresh</span>
+                </label>
+              
+                <select id="refresh-select" class="refresh-select">
+                  <option value="0">Off</option>
+                  <option value="90">Every 90s</option>
+                  <option value="60" selected>Every 60s</option>
+                  <option value="30">Every 30s</option>
+                </select>
+              </div>
+              
             </div>
 
             <div id="table-loading" class="loading">
@@ -1309,53 +1344,43 @@
       }
 
       async function sendChatQuestion() {
-        const chatInput = document.getElementById("chat-input");
-        const answerEl = document.getElementById("chat-answer");
-        const statusEl = document.getElementById("chat-status");
-        const errEl = document.getElementById("chat-error");
-        const limitSelect = document.getElementById("ai-context-limit");
-        const limit = limitSelect ? Number(limitSelect.value) : 200;
+  const chatInput = document.getElementById("chat-input");
+  const answerEl = document.getElementById("chat-answer");
+  const statusEl = document.getElementById("chat-status");
+  const errEl = document.getElementById("chat-error");
+  const limitSelect = document.getElementById("ai-context-limit");
+  const limit = limitSelect ? Number(limitSelect.value) : 200;
 
-        const res = await fetch(`/alerts/chat?limit=${limit}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question }),
-        });
+  const question = (chatInput.value || "").trim();
+  if (!question) return;
 
-        const question = (chatInput.value || "").trim();
-        if (!question) return;
+  statusEl.style.display = "inline";
+  answerEl.style.display = "none";
+  errEl.style.display = "none";
 
-        statusEl.style.display = "inline";
-        answerEl.style.display = "none";
-        errEl.style.display = "none";
+  try {
+    const res = await fetch(`/alerts/chat?limit=${limit}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
 
-        try {
-          const res = await fetch("/alerts/chat?limit=20", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              question,
-            }),
-          });
+    if (!res.ok) throw new Error("HTTP " + res.status);
 
-          if (!res.ok) {
-            throw new Error("HTTP " + res.status);
-          }
+    const data = await res.json();
+    chatInput.value = "";
+    answerEl.textContent = data.answer || "No answer returned.";
+    answerEl.style.display = "block";
+  } catch (err) {
+    console.error(err);
+    errEl.textContent =
+      "Could not get AI answer for this question (check /alerts/chat in your logs).";
+    errEl.style.display = "block";
+  } finally {
+    statusEl.style.display = "none";
+  }
+}
 
-          const data = await res.json();
-          // ChatResponse has `answer` and `transfer_count`
-          chatInput.value = "";
-          answerEl.textContent = data.answer || "No answer returned.";
-          answerEl.style.display = "block";
-        } catch (err) {
-          console.error(err);
-          errEl.textContent =
-            "Could not get AI answer for this question (check /alerts/chat in your logs).";
-          errEl.style.display = "block";
-        } finally {
-          statusEl.style.display = "none";
-        }
-      }
 
       function downloadDataCsv() {
         const rows = currentTransfers || [];
@@ -1941,6 +1966,35 @@
       window.addEventListener("load", () => {
         loadSummary();
         loadWhales();
+        let refreshIntervalId = null;
+
+function applyRefreshSetting(seconds) {
+  if (refreshIntervalId) {
+    clearInterval(refreshIntervalId);
+    refreshIntervalId = null;
+  }
+
+  const s = Number(seconds);
+
+  if (!s) {
+    console.log("Live refresh OFF");
+    return;
+  }
+
+  console.log("Live refresh set to", s, "seconds");
+  refreshIntervalId = setInterval(() => {
+    loadWhales(true);
+  }, s * 1000);
+}
+
+const refreshSelect = document.getElementById("refresh-select");
+if (refreshSelect) {
+  refreshSelect.addEventListener("change", (e) => {
+    applyRefreshSetting(e.target.value);
+  });
+
+  applyRefreshSetting(refreshSelect.value);
+}
 
         const limitSelect = document.getElementById("ai-context-limit");
         if (limitSelect) {
@@ -1949,45 +2003,39 @@
             loadWhales();
           });
         }
-        const applyBtn = document.getElementById("filter-apply");
         const minAmountInput = document.getElementById("filter-min-amount");
         const patternSelect = document.getElementById("filter-pattern");
         const prevBtn = document.getElementById("page-prev");
         const nextBtn = document.getElementById("page-next");
 
-        if (applyBtn) {
-          applyBtn.addEventListener("click", () => {
-            loadWhales();
-          });
-        }
         if (minAmountInput) {
-          minAmountInput.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              loadWhales();
-            }
-          });
-        }
-        if (patternSelect) {
-          patternSelect.addEventListener("change", () => {
-            currentPage = 1;
-            renderWhaleTable();
-          });
-        }
-        if (prevBtn) {
-          prevBtn.addEventListener("click", () => {
-            if (currentPage > 1) {
-              currentPage -= 1;
-              renderWhaleTable();
-            }
-          });
-        }
-        if (nextBtn) {
-          nextBtn.addEventListener("click", () => {
-            currentPage += 1;
-            renderWhaleTable();
-          });
-        }
+  minAmountInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      loadWhales();
+    }
+  });
+}
+if (patternSelect) {
+  patternSelect.addEventListener("change", () => {
+    currentPage = 1;
+    renderWhaleTable();
+  });
+}
+if (prevBtn) {
+  prevBtn.addEventListener("click", () => {
+    if (currentPage > 1) {
+      currentPage -= 1;
+      renderWhaleTable();
+    }
+  });
+}
+if (nextBtn) {
+  nextBtn.addEventListener("click", () => {
+    currentPage += 1;
+    renderWhaleTable();
+  });
+}
 
         // Research note button
         const reportButton = document.getElementById("report-generate");
@@ -2116,10 +2164,6 @@
 
         initMultiPills(".filter-token-btn", "token-all");
         initMultiPills(".filter-pattern-btn", "pattern-all");
-
-        setInterval(() => {
-          loadWhales(true);
-        }, 60000);
       });
       document.addEventListener("DOMContentLoaded", () => {
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;

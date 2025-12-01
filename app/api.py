@@ -181,6 +181,7 @@ def alerts_chat(
         lines.append(
             f"- {t.amount} {t.token_symbol} from {from_short} to {to_short} (block {t.block_number})"
         )
+    transfers_text = "\n".join(lines)
 
     from collections import defaultdict
 
