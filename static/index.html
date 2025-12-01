@@ -198,6 +198,19 @@
         background: rgba(148, 163, 184, 0.95);
       }
 
+      .table-container tr.row-new {
+        animation: flashRow 0.8s ease-out;
+      }
+
+      @keyframes flashRow {
+        0% {
+          background-color: rgba(56, 189, 248, 0.28); /* teal-ish flash */
+        }
+        100% {
+          background-color: transparent; /* hand off to normal row bg */
+        }
+      }
+
       .tab-header {
         display: inline-flex;
         background: rgba(15, 23, 42, 0.9);
@@ -906,6 +919,9 @@
       let totalPages = 1;
       let summaryTransferCount = 0;
       const PAGE_SIZE = 20;
+      let lastNewIds = new Set();
+      let isAutoRefreshing = false;
+      let lastSeenIds = new Set();
 
       function shortenAddress(addr) {
         if (!addr || addr.length < 10) return addr || "";
@@ -1400,25 +1416,26 @@
       }
 
       /* ---------- LOAD WHALES + TABLE + PAGINATION ---------- */
-      async function loadWhales() {
+      async function loadWhales(isAutoRefresh = false) {
         const loadingEl = document.getElementById("table-loading");
         const tableEl = document.getElementById("whale-table");
         const tbodyEl = document.getElementById("whale-tbody");
         const errEl = document.getElementById("table-error");
-
         const minAmountInput = document.getElementById("filter-min-amount");
         const minAmount = Number(
           (minAmountInput && minAmountInput.value) || 100,
         );
-
         const paginationEl = document.getElementById("pagination");
 
-        loadingEl.style.display = "block";
-        loadingEl.textContent = "Loading whale transfers…";
-        tableEl.style.display = "none";
-        tbodyEl.innerHTML = "";
         errEl.style.display = "none";
-        if (paginationEl) paginationEl.style.display = "none";
+
+        if (!isAutoRefresh) {
+          loadingEl.style.display = "block";
+          loadingEl.textContent = "Loading whale transfers…";
+          tableEl.style.display = "none";
+          tbodyEl.innerHTML = "";
+          if (paginationEl) paginationEl.style.display = "none";
+        }
 
         try {
           const res = await fetch(`/alerts/latest?limit=200`);
@@ -1429,6 +1446,18 @@
           const filteredByAmount = allRows.filter(
             (t) => Number(t.amount || 0) >= minAmount,
           );
+
+          const newIds = new Set();
+          if (isAutoRefresh && lastSeenIds.size) {
+            filteredByAmount.forEach((t) => {
+              if (!lastSeenIds.has(t.tx_hash)) {
+                newIds.add(t.tx_hash);
+              }
+            });
+          }
+          lastNewIds = newIds;
+
+          lastSeenIds = new Set(filteredByAmount.map((t) => t.tx_hash));
 
           currentTransfers = filteredByAmount;
 
@@ -1441,17 +1470,27 @@
           }
 
           currentWalletStats = buildWalletStats(currentTransfers);
-          currentPage = 1;
-          loadingEl.style.display = "none";
+
+          if (!isAutoRefresh) {
+            currentPage = 1;
+            selectWallet(null);
+          }
+
+          if (!isAutoRefresh) {
+            loadingEl.style.display = "none";
+          }
 
           updateMetricsCard();
-          selectWallet(null);
           renderWhaleTable();
         } catch (err) {
           console.error(err);
-          loadingEl.style.display = "none";
-          errEl.textContent = "Could not load whale transfers.";
-          errEl.style.display = "block";
+          if (!isAutoRefresh) {
+            loadingEl.style.display = "none";
+            errEl.textContent = "Could not load whale transfers.";
+            errEl.style.display = "block";
+          }
+        } finally {
+          if (isAutoRefresh) isAutoRefreshing = false;
         }
       }
 
@@ -1526,11 +1565,7 @@
         const loadingEl = document.getElementById("table-loading");
         const errEl = document.getElementById("table-error");
         const patternSelect = document.getElementById("filter-pattern");
-
         const paginationEl = document.getElementById("pagination");
-        const pageInfoEl = document.getElementById("page-info");
-        const prevBtn = document.getElementById("page-prev");
-        const nextBtn = document.getElementById("page-next");
 
         tbodyEl.innerHTML = "";
         errEl.style.display = "none";
@@ -1564,8 +1599,12 @@
           return;
         }
 
-        const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-        if (currentPage > totalPages) currentPage = totalPages;
+        // ✅ compute pages for THIS filtered view
+        const totalPagesLocal = Math.max(
+          1,
+          Math.ceil(filtered.length / PAGE_SIZE),
+        );
+        if (currentPage > totalPagesLocal) currentPage = totalPagesLocal;
         if (currentPage < 1) currentPage = 1;
 
         const start = (currentPage - 1) * PAGE_SIZE;
@@ -1573,6 +1612,10 @@
 
         pageItems.forEach(({ transfer: t, pattern }) => {
           const tr = document.createElement("tr");
+
+          if (currentPage === 1 && lastNewIds.has(t.tx_hash)) {
+            tr.classList.add("row-new");
+          }
 
           const amtTd = document.createElement("td");
           amtTd.className = "amount";
@@ -1647,7 +1690,7 @@
 
         loadingEl.style.display = "none";
         tableEl.style.display = "table";
-        renderPagination(totalPages);
+        renderPagination(totalPagesLocal);
       }
 
       /* ---------- WALLET DRILL-DOWN ---------- */
@@ -1930,6 +1973,9 @@
             });
           });
         }
+        setInterval(() => {
+          loadWhales(true);
+        }, 60000);
       });
       document.addEventListener("DOMContentLoaded", () => {
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
