@@ -15,7 +15,7 @@ def _get_alchemy_url() -> str:
         raise RuntimeError("ALCHEMY_API_KEY is missing")
     return f"https://eth-mainnet.g.alchemy.com/v2/{ALCHEMY_API_KEY}"
 
-CACHE_TTL = 60  # seconds
+CACHE_TTL = 30  # seconds
 _last_fetch_ts: float = 0.0
 _last_fetch_data: List[WhaleTransfer] = []
 
@@ -30,12 +30,10 @@ def fetch_whales(limit: int = 400, min_amount: float = 100.0) -> List[WhaleTrans
 
     now = time.time()
 
-    # 1) Return from cache if fresh
     if _last_fetch_data and (now - _last_fetch_ts) < CACHE_TTL:
         filtered = [t for t in _last_fetch_data if t.amount >= min_amount]
         return filtered[: min(limit, len(filtered))]
 
-    # safety cap
     limit = min(limit, 1000)
 
     fresh = fetch_whale_transfers_from_provider(limit=limit, min_amount=min_amount)
@@ -60,7 +58,7 @@ def fetch_whale_transfers_from_provider(
     url = _get_alchemy_url()
 
     def _call_alchemy(categories: list[str]) -> list[dict]:
-        max_rows_per_category = 500  # 🔹 tweak this if needed
+        max_rows_per_category = 500 
         payload = {
             "jsonrpc": "2.0",
             "id": 1,
@@ -72,7 +70,6 @@ def fetch_whale_transfers_from_provider(
                     "category": categories,
                     "withMetadata": True,
                     "excludeZeroValue": True,
-                    # ask for more so ETH doesn't get crowded out
                     "maxCount": hex(max_rows_per_category),
                     "order": "desc",
                 }
@@ -109,10 +106,9 @@ def fetch_whale_transfers_from_provider(
             continue
 
         raw_contract = item.get("rawContract") or {}
-        token_addr = raw_contract.get("address")  # None for native ETH
+        token_addr = raw_contract.get("address")  
         raw_symbol = item.get("asset")
 
-        # treat "no contract" as native ETH, normalize others
         if token_addr is None:
             asset_symbol = "ETH"
         else:
@@ -139,6 +135,5 @@ def fetch_whale_transfers_from_provider(
         )
         transfers.append(wt)
 
-    # sort newest → oldest by block, then trim to limit
     transfers.sort(key=lambda t: t.block_number or 0, reverse=True)
     return transfers[:limit]  
