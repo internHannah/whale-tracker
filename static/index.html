@@ -172,13 +172,33 @@
       }
 
       .table-container {
-        max-height: 420px; /* tweak this number to taste */
-        overflow-y: auto; /* vertical scroll */
-        overflow-x: auto; /* horizontal if needed */
+        max-height: 420px;
+        overflow-y: auto;
+        overflow-x: auto;
         border-radius: 10px;
+        scrollbar-gutter: stable both-edges;
+        border: 1px solid rgba(55, 65, 81, 0.6);
+        box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.25);
       }
 
-      /* Tabs for AI Whale Intelligence panel */
+      .table-container::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .table-container::-webkit-scrollbar-track {
+        background: rgba(30, 41, 59, 0.4);
+        border-radius: 8px;
+      }
+
+      .table-container::-webkit-scrollbar-thumb {
+        background: rgba(100, 116, 139, 0.8);
+        border-radius: 8px;
+      }
+
+      .table-container::-webkit-scrollbar-thumb:hover {
+        background: rgba(148, 163, 184, 0.95);
+      }
+
       .tab-header {
         display: inline-flex;
         background: rgba(15, 23, 42, 0.9);
