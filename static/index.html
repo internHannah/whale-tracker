@@ -145,7 +145,6 @@
         color: #9ca3af;
       }
 
-      /* 2-column layout */
       .layout {
         display: flex;
         gap: 18px;
@@ -153,7 +152,7 @@
       }
 
       .main-column {
-        flex: 2.3; /* wide */
+        flex: 2.3;
         min-width: 0;
       }
 
@@ -229,6 +228,22 @@
 
       .tab-panel.active {
         display: block;
+      }
+
+      .timezone-indicator {
+        font-size: 11px;
+        color: #9ca3af;
+        opacity: 0.85;
+        margin-top: 4px;
+        margin-bottom: 6px;
+        padding-left: 4px;
+        user-select: none;
+        pointer-events: none;
+        letter-spacing: 0.2px;
+      }
+      .timezone-indicator span {
+        color: #e5e7eb;
+        font-weight: 500;
       }
 
       #pagination {
@@ -319,7 +334,10 @@
           <div class="card">
             <div class="card-title" style="margin-bottom: 6px">
               Recent Whale Transfers
-              <span class="chip">ETH (>100)</span>
+              <span class="chip">Whales (USDC, USDT, ETH, WBTC)</span>
+            </div>
+            <div class="timezone-indicator">
+              Local time: <span id="tz"></span>
             </div>
 
             <div
@@ -894,9 +912,27 @@
         return addr.slice(0, 6) + "..." + addr.slice(-4);
       }
 
-      function formatIso(iso) {
-        if (!iso) return "";
-        return iso.replace("T", " ").replace("Z", "").split(".")[0];
+      function formatLocal(dtString) {
+        const dt = new Date(dtString);
+        return dt.toLocaleString(undefined, {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+      }
+
+      function timeAgo(dtString) {
+        const now = new Date();
+        const then = new Date(dtString);
+        const diff = (now - then) / 1000;
+
+        if (diff < 60) return `${Math.floor(diff)}s ago`;
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return `${Math.floor(diff / 86400)}d ago`;
       }
 
       /* ---------- AI SUMMARY ---------- */
@@ -1595,7 +1631,15 @@
           tr.appendChild(blockTd);
 
           const obsTd = document.createElement("td");
-          obsTd.textContent = formatIso(t.observed_at);
+
+          const local = formatLocal(t.observed_at);
+          const age = timeAgo(t.observed_at);
+
+          obsTd.innerHTML = `
+  <div>${local}</div>
+  <div style="font-size: 11px; color: #9ca3af;">${age}</div>
+`;
+
           tr.appendChild(obsTd);
 
           tbodyEl.appendChild(tr);
@@ -1750,8 +1794,8 @@
         const limitSelect = document.getElementById("ai-context-limit");
         if (limitSelect) {
           limitSelect.addEventListener("change", () => {
-            loadSummary(); // AI summary uses new window
-            loadWhales(); // table + metrics use same window (optional but nice)
+            loadSummary();
+            loadWhales();
           });
         }
         const applyBtn = document.getElementById("filter-apply");
@@ -1886,6 +1930,10 @@
             });
           });
         }
+      });
+      document.addEventListener("DOMContentLoaded", () => {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        document.getElementById("tz").textContent = tz;
       });
     </script>
   </body>
