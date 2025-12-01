@@ -331,6 +331,29 @@
         font-size: 16px;
         line-height: 1;
       }
+
+      .filter-group {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .filter-pill {
+        border-radius: 999px;
+        border: 1px solid rgba(55, 65, 81, 0.9);
+        background: rgba(15, 23, 42, 0.9);
+        color: #9ca3af;
+        font-size: 11px;
+        padding: 3px 8px;
+        cursor: pointer;
+      }
+
+      .filter-pill.active {
+        background: linear-gradient(135deg, #4f46e5, #0ea5e9);
+        color: #ffffff;
+        border-color: transparent;
+      }
     </style>
   </head>
   <body>
@@ -382,24 +405,58 @@
                   "
                 />
               </div>
-              <div>
-                <span>Pattern: </span>
-                <select
-                  id="filter-pattern"
-                  style="
-                    padding: 2px 6px;
-                    border-radius: 6px;
-                    border: 1px solid rgba(55, 65, 81, 0.9);
-                    background: rgba(15, 23, 42, 0.9);
-                    color: #e5e7eb;
-                  "
+              <div class="filter-group">
+                <span style="margin-right: 4px">Tokens:</span>
+                <button
+                  id="token-all"
+                  class="filter-pill filter-token-btn active"
+                  data-token="ALL"
                 >
-                  <option value="all">All</option>
-                  <option value="Accumulator-like">Accumulator-like</option>
-                  <option value="Distributor-like">Distributor-like</option>
-                  <option value="Balanced">Balanced</option>
-                </select>
+                  All
+                </button>
+                <button class="filter-pill filter-token-btn" data-token="ETH">
+                  ETH
+                </button>
+                <button class="filter-pill filter-token-btn" data-token="USDC">
+                  USDC
+                </button>
+                <button class="filter-pill filter-token-btn" data-token="USDT">
+                  USDT
+                </button>
+                <button class="filter-pill filter-token-btn" data-token="WBTC">
+                  WBTC
+                </button>
               </div>
+
+              <div class="filter-group">
+                <span style="margin-right: 4px">Pattern:</span>
+                <button
+                  id="pattern-all"
+                  class="filter-pill filter-pattern-btn active"
+                  data-pattern="ALL"
+                >
+                  All
+                </button>
+                <button
+                  class="filter-pill filter-pattern-btn"
+                  data-pattern="Accumulator-like"
+                >
+                  Accumulator-like
+                </button>
+                <button
+                  class="filter-pill filter-pattern-btn"
+                  data-pattern="Distributor-like"
+                >
+                  Distributor-like
+                </button>
+                <button
+                  class="filter-pill filter-pattern-btn"
+                  data-pattern="Balanced"
+                >
+                  Balanced
+                </button>
+              </div>
+
               <button
                 id="filter-apply"
                 style="
@@ -1559,12 +1616,55 @@
         addPageButton(totalPages);
       }
 
+      function getActiveTokenSet() {
+        const allBtn = document.getElementById("token-all");
+        const buttons = document.querySelectorAll(".filter-token-btn");
+        const set = new Set();
+
+        if (allBtn && allBtn.classList.contains("active")) {
+          return set;
+        }
+
+        buttons.forEach((btn) => {
+          if (btn === allBtn) return;
+          if (btn.classList.contains("active")) {
+            const tok = btn.getAttribute("data-token");
+            if (tok && tok !== "ALL") {
+              set.add(tok.toUpperCase());
+            }
+          }
+        });
+
+        return set;
+      }
+
+      function getActivePatternSet() {
+        const allBtn = document.getElementById("pattern-all");
+        const buttons = document.querySelectorAll(".filter-pattern-btn");
+        const set = new Set();
+
+        if (allBtn && allBtn.classList.contains("active")) {
+          return set;
+        }
+
+        buttons.forEach((btn) => {
+          if (btn === allBtn) return;
+          if (btn.classList.contains("active")) {
+            const label = btn.getAttribute("data-pattern");
+            if (label && label !== "ALL") {
+              set.add(label);
+            }
+          }
+        });
+
+        return set;
+      }
+
       function renderWhaleTable() {
         const tableEl = document.getElementById("whale-table");
         const tbodyEl = document.getElementById("whale-tbody");
         const loadingEl = document.getElementById("table-loading");
         const errEl = document.getElementById("table-error");
-        const patternSelect = document.getElementById("filter-pattern");
         const paginationEl = document.getElementById("pagination");
 
         tbodyEl.innerHTML = "";
@@ -1576,7 +1676,8 @@
           return;
         }
 
-        const patternFilter = (patternSelect && patternSelect.value) || "all";
+        const tokenFilterSet = getActiveTokenSet();
+        const patternFilterSet = getActivePatternSet();
 
         const enriched = currentTransfers.map((t) => {
           const pattern = classifyPatternForTransfer(
@@ -1586,9 +1687,17 @@
           return { transfer: t, pattern };
         });
 
-        const filtered = enriched.filter((row) => {
-          if (patternFilter === "all") return true;
-          return row.pattern.label === patternFilter;
+        const filtered = enriched.filter(({ transfer: t, pattern }) => {
+          const sym = (t.token_symbol || "ETH").toUpperCase();
+          if (tokenFilterSet.size && !tokenFilterSet.has(sym)) {
+            return false;
+          }
+
+          if (patternFilterSet.size && !patternFilterSet.has(pattern.label)) {
+            return false;
+          }
+
+          return true;
         });
 
         if (filtered.length === 0) {
@@ -1599,7 +1708,6 @@
           return;
         }
 
-        // ✅ compute pages for THIS filtered view
         const totalPagesLocal = Math.max(
           1,
           Math.ceil(filtered.length / PAGE_SIZE),
@@ -1973,6 +2081,42 @@
             });
           });
         }
+        function initMultiPills(groupSelector, allId) {
+          const allBtn = document.getElementById(allId);
+          const buttons = document.querySelectorAll(groupSelector);
+          if (!allBtn || !buttons.length) return;
+
+          // Click “All”
+          allBtn.addEventListener("click", () => {
+            buttons.forEach((b) => b.classList.remove("active"));
+            allBtn.classList.add("active");
+            currentPage = 1;
+            renderWhaleTable();
+          });
+
+          // Click individual filters (multi-select)
+          buttons.forEach((btn) => {
+            if (btn === allBtn) return;
+            btn.addEventListener("click", () => {
+              btn.classList.toggle("active");
+              allBtn.classList.remove("active");
+
+              const anyActive = Array.from(buttons).some(
+                (b) => b !== allBtn && b.classList.contains("active"),
+              );
+              if (!anyActive) {
+                allBtn.classList.add("active");
+              }
+
+              currentPage = 1;
+              renderWhaleTable();
+            });
+          });
+        }
+
+        initMultiPills(".filter-token-btn", "token-all");
+        initMultiPills(".filter-pattern-btn", "pattern-all");
+
         setInterval(() => {
           loadWhales(true);
         }, 60000);

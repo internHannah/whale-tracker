@@ -40,7 +40,7 @@ whale-tracker/
   - Pattern filter
   - Pagination (20 rows per page)
   - Scrollable bar
-  - Auto-refresh 
+  - Auto-refresh
 - Address links to Etherscan.
 - Clickable wallet addresses populate drill-down analytics.
 
