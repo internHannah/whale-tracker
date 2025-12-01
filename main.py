@@ -19,11 +19,9 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 def root():
     return FileResponse("static/index.html")
 
-
-@app.get("/health", include_in_schema=False)
+@app.api_route("/health", methods=["GET", "HEAD"], include_in_schema=False)
 def health():
     return {"status": "ok"}
-
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
