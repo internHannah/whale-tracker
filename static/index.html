@@ -489,6 +489,31 @@
                 </button>
               </div>
             </div>
+            <div
+              style="
+                font-size: 11px;
+                color: #9ca3af;
+                margin-bottom: 8px;
+                margin-top: 4px;
+              "
+            >
+              AI context window:
+              <select
+                id="ai-context-limit"
+                style="
+                  padding: 2px 6px;
+                  border-radius: 6px;
+                  border: 1px solid rgba(55, 65, 81, 0.9);
+                  background: rgba(15, 23, 42, 0.9);
+                  color: #e5e7eb;
+                "
+              >
+                <option value="50">Last 50 transfers</option>
+                <option value="200" selected>Last 200 transfers</option>
+                <option value="500">Last 500 transfers</option>
+                <option value="1000">Last 1000 transfers</option>
+              </select>
+            </div>
             <div class="card" id="intelligence-card">
               <div
                 style="
@@ -866,8 +891,11 @@
         metaEl.style.display = "none";
         errEl.style.display = "none";
 
+        const limitSelect = document.getElementById("ai-context-limit");
+        const limit = limitSelect ? Number(limitSelect.value) : 200;
+
         try {
-          const res = await fetch("/alerts/summary");
+          const res = await fetch(`/alerts/summary?limit=${limit}`);
           if (!res.ok) throw new Error("HTTP " + res.status);
           const data = await res.json();
 
@@ -1156,6 +1184,14 @@
         const answerEl = document.getElementById("chat-answer");
         const statusEl = document.getElementById("chat-status");
         const errEl = document.getElementById("chat-error");
+        const limitSelect = document.getElementById("ai-context-limit");
+        const limit = limitSelect ? Number(limitSelect.value) : 200;
+
+        const res = await fetch(`/alerts/chat?limit=${limit}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question }),
+        });
 
         const question = (chatInput.value || "").trim();
         if (!question) return;
@@ -1691,6 +1727,13 @@
         loadSummary();
         loadWhales();
 
+        const limitSelect = document.getElementById("ai-context-limit");
+        if (limitSelect) {
+          limitSelect.addEventListener("change", () => {
+            loadSummary(); // AI summary uses new window
+            loadWhales(); // table + metrics use same window (optional but nice)
+          });
+        }
         const applyBtn = document.getElementById("filter-apply");
         const minAmountInput = document.getElementById("filter-min-amount");
         const patternSelect = document.getElementById("filter-pattern");

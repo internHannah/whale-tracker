@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from typing import Optional
 from openai import OpenAI
 
@@ -69,12 +69,12 @@ def alerts_summary(
     min_amount_eth: float = 0.0,
     token: Optional[str] = None,
 ):
-    # Use same source as table so we see ETH + stables + WBTC
+    limit = max(1, min(limit, 1000))
+
     transfers = whale_service.fetch_whales(
-        min_amount=0.0,
+        min_amount=min_amount_eth,
         limit=limit,
     )
-
     transfers = _filter_by_token(transfers, token)
 
     if not transfers:
@@ -83,59 +83,55 @@ def alerts_summary(
             transfer_count=0,
         )
 
-    # ---------- 1) Build per-token stats ----------
     from collections import defaultdict
 
-    token_counts = defaultdict(int)
-    token_volumes = defaultdict(float)
-
+    by_token = defaultdict(lambda: {"count": 0, "volume": 0.0, "largest": 0.0})
     for t in transfers:
-        sym = (t.token_symbol or "ETH").upper()
-        token_counts[sym] += 1
-        try:
-            token_volumes[sym] += float(t.amount or 0)
-        except (TypeError, ValueError):
-            pass
+        tok = (t.token_symbol or "ETH").upper()
+        amt = float(t.amount or 0)
+        s = by_token[tok]
+        s["count"] += 1
+        s["volume"] += amt
+        if amt > s["largest"]:
+            s["largest"] = amt
 
-    breakdown_lines = []
-    for sym in sorted(token_counts.keys()):
-        breakdown_lines.append(
-            f"- {sym}: {token_counts[sym]} transfers, total volume ≈ {token_volumes[sym]:.4f} {sym}"
+    agg_lines = []
+    for tok, s in by_token.items():
+        agg_lines.append(
+            f"{tok}: {s['count']} transfers, total {s['volume']:.2f} {tok}, "
+            f"largest {s['largest']:.2f} {tok}"
         )
-    token_breakdown = "\n".join(breakdown_lines)
+    agg_text = "\n".join(agg_lines) or "No meaningful volume."
 
-    # ---------- 2) Transfers list ----------
-    lines = []
-    for t in transfers:
+    sample = transfers[: min(20, len(transfers))]
+    sample_lines = []
+    for t in sample:
         from_short = (t.from_address or "")[:6] + "..." + (t.from_address or "")[-4:]
-        to_short = (t.to_address or "")[:6] + "..." + (t.to_address or "")[-4:]
-        lines.append(
+        to_short = (
+            (t.to_address or "")[:6] + "..." + (t.to_address or "")[-4:]
+            if t.to_address
+            else ""
+        )
+        sample_lines.append(
             f"- {t.amount} {t.token_symbol} from {from_short} to {to_short} (block {t.block_number})"
         )
-    transfers_text = "\n".join(lines)
+    sample_text = "\n".join(sample_lines)
 
     tok_phrase = _token_phrase(token)
+    snapshot_size = len(transfers)
 
-    # ---------- 3) Prompt that explicitly asks for cross-token analysis ----------
     system_msg = (
         "You are an on-chain crypto analyst. "
-        "You summarize a snapshot of large token transfers for a PM or trader. "
-        "Use the token breakdown and example transfers to reason carefully. "
-        "If transfers include multiple token types (ETH, USDC, USDT, WBTC), "
-        "compare them and state which dominates by volume and by count. "
-        "Mention if flows look like exchange routing, OTC movement, "
-        "accumulation, or benign internal transfers. "
-        "If you don't have enough evidence, say so."
+        "Use the aggregated stats and sample transfers to describe patterns "
+        "across tokens. If evidence is weak, say so."
     )
 
     user_msg = (
-        f"Here is a snapshot of recent large {tok_phrase} transfers on Ethereum.\n\n"
-        f"Token breakdown (pre-computed):\n"
-        f"{token_breakdown}\n\n"
-        f"Example transfers:\n"
-        f"{transfers_text}\n\n"
-        "In 3–5 sentences, summarize the main patterns. "
-        "Explicitly discuss how ETH vs stablecoins vs WBTC behave in this snapshot."
+        f"This snapshot contains {snapshot_size} {tok_phrase} transfers.\n\n"
+        f"Aggregated stats by token:\n{agg_text}\n\n"
+        f"Sample transfers:\n{sample_text}\n\n"
+        "In 3–5 sentences, summarize the main patterns, including how ETH vs "
+        "stablecoins vs WBTC behave in this window."
     )
 
     chat = client.chat.completions.create(
@@ -151,7 +147,7 @@ def alerts_summary(
 
     return AlertsSummary(
         summary=summary_text,
-        transfer_count=len(transfers),
+        transfer_count=snapshot_size,
     )
 
 # -----------------------------
@@ -160,9 +156,11 @@ def alerts_summary(
 @router.post("/chat", response_model=ChatResponse)
 def alerts_chat(
     payload: ChatRequest,
-    limit: int = 20,
+    limit: int = Query(100, ge=20, le=1000),
     token: Optional[str] = None,
 ):
+    limit = min(limit, 1000)
+
     transfers = whale_service.fetch_whales(
         min_amount=0.0,
         limit=limit,
@@ -184,7 +182,40 @@ def alerts_chat(
             f"- {t.amount} {t.token_symbol} from {from_short} to {to_short} (block {t.block_number})"
         )
 
-    transfers_text = "\n".join(lines)
+    from collections import defaultdict
+
+    by_token = defaultdict(lambda: {"count": 0, "volume": 0.0, "largest": 0.0})
+    for t in transfers:
+        tok = (t.token_symbol or "ETH").upper()
+        amt = float(t.amount or 0)
+        s = by_token[tok]
+        s["count"] += 1
+        s["volume"] += amt
+        if amt > s["largest"]:
+            s["largest"] = amt
+
+    agg_lines = []
+    for tok, s in by_token.items():
+        agg_lines.append(
+            f"{tok}: {s['count']} transfers, total {s['volume']:.2f} {tok}, "
+            f"largest {s['largest']:.2f} {tok}"
+        )
+    agg_text = "\n".join(agg_lines) or "No meaningful volume."
+
+    sample = transfers[: min(20, len(transfers))]
+    sample_lines = []
+    for t in sample:
+        from_short = (t.from_address or "")[:6] + "..." + (t.from_address or "")[-4:]
+        to_short = (
+            (t.to_address or "")[:6] + "..." + (t.to_address or "")[-4:]
+            if t.to_address
+            else ""
+        )
+        sample_lines.append(
+            f"- {t.amount} {t.token_symbol} from {from_short} to {to_short} (block {t.block_number})"
+        )
+    sample_text = "\n".join(sample_lines)
+
     tok_phrase = _token_phrase(token)
 
     system_msg = (

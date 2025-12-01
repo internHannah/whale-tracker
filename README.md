@@ -34,11 +34,12 @@ whale-tracker/
 
 ### Whale Monitoring
 
-- Fetches ~200 recent ETH transfers.
+- Fetches ~1000 recent ETH transfers.
 - Table view with:
   - Min-amount filter
   - Pattern filter
-  - Pagination (10 rows per page)
+  - Pagination (20 rows per page)
+  - Scrollable feature
 - Address links to Etherscan.
 - Clickable wallet addresses populate drill-down analytics.
 
