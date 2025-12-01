@@ -10,17 +10,19 @@ app = FastAPI(
     description="Tracks large on-chain transfers and exposes recent whale alerts.",
 )
 
-# Include your API routes
 app.include_router(alerts_router)
 
-# Serve the static folder (for future CSS/JS if needed)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.get("/", include_in_schema=False)
 def root():
-    # Serve the main HTML page
     return FileResponse("static/index.html")
+
+
+@app.get("/health", include_in_schema=False)
+def health():
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":
