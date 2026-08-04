@@ -26,8 +26,24 @@ class AlertsSummary(BaseModel):
     summary: str
     transfer_count: int
 
+
+class TokenStat(BaseModel):
+    token: str
+    count: int
+    volume: float
+    largest: float
+
+
+class AlertsStats(BaseModel):
+    transfer_count: int
+    unique_wallets: int
+    by_token: List[TokenStat]
+    token_filter: Optional[str] = None
+
+
 class ChatRequest(BaseModel):
     question: str
+
 
 class ChatResponse(BaseModel):
     answer: str

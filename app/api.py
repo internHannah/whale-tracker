@@ -1,8 +1,16 @@
+from collections import defaultdict
 from fastapi import APIRouter, Query
-from typing import Optional
+from typing import List, Optional
 from openai import OpenAI
 
-from .schemas import WhaleTransferList, AlertsSummary, ChatRequest, ChatResponse
+from .schemas import (
+    WhaleTransferList,
+    AlertsSummary,
+    AlertsStats,
+    TokenStat,
+    ChatRequest,
+    ChatResponse,
+)
 from . import whale_service
 
 
@@ -24,6 +32,66 @@ def _token_phrase(token: Optional[str]) -> str:
     if not token:
         return "ETH, USDC, USDT, and WBTC"
     return token.upper()
+
+
+def _short_addr(addr: Optional[str]) -> str:
+    if not addr:
+        return ""
+    if len(addr) < 10:
+        return addr
+    return f"{addr[:6]}...{addr[-4:]}"
+
+
+def _aggregate_by_token(transfers) -> List[TokenStat]:
+    by_token = defaultdict(lambda: {"count": 0, "volume": 0.0, "largest": 0.0})
+    for t in transfers:
+        tok = (t.token_symbol or "ETH").upper()
+        amt = float(t.amount or 0)
+        s = by_token[tok]
+        s["count"] += 1
+        s["volume"] += amt
+        if amt > s["largest"]:
+            s["largest"] = amt
+
+    return [
+        TokenStat(
+            token=tok,
+            count=s["count"],
+            volume=round(s["volume"], 4),
+            largest=round(s["largest"], 4),
+        )
+        for tok, s in sorted(by_token.items(), key=lambda kv: kv[1]["volume"], reverse=True)
+    ]
+
+
+def _unique_wallet_count(transfers) -> int:
+    wallets = set()
+    for t in transfers:
+        if t.from_address:
+            wallets.add(t.from_address.lower())
+        if t.to_address:
+            wallets.add(t.to_address.lower())
+    return len(wallets)
+
+
+def _format_agg_text(stats: List[TokenStat]) -> str:
+    if not stats:
+        return "No meaningful volume."
+    return "\n".join(
+        f"{s.token}: {s.count} transfers, total {s.volume:.2f} {s.token}, "
+        f"largest {s.largest:.2f} {s.token}"
+        for s in stats
+    )
+
+
+def _format_sample_text(transfers, max_rows: int = 20) -> str:
+    lines = []
+    for t in transfers[:max_rows]:
+        lines.append(
+            f"- {t.amount} {t.token_symbol} from {_short_addr(t.from_address)} "
+            f"to {_short_addr(t.to_address)} (block {t.block_number})"
+        )
+    return "\n".join(lines)
 
 
 # -----------------------------
@@ -61,6 +129,30 @@ def latest_alerts(
 
 
 # -----------------------------
+# /alerts/stats
+# -----------------------------
+@router.get("/stats", response_model=AlertsStats)
+def alerts_stats(
+    limit: int = Query(200, ge=1, le=1000),
+    min_amount: float = 0.0,
+    token: Optional[str] = None,
+):
+    """Structured per-token aggregates without calling an LLM."""
+    transfers = whale_service.fetch_whales(
+        min_amount=min_amount,
+        limit=limit,
+    )
+    transfers = _filter_by_token(transfers, token)
+
+    return AlertsStats(
+        transfer_count=len(transfers),
+        unique_wallets=_unique_wallet_count(transfers),
+        by_token=_aggregate_by_token(transfers),
+        token_filter=token.upper() if token else None,
+    )
+
+
+# -----------------------------
 # /alerts/summary
 # -----------------------------
 @router.get("/summary", response_model=AlertsSummary)
@@ -83,40 +175,9 @@ def alerts_summary(
             transfer_count=0,
         )
 
-    from collections import defaultdict
-
-    by_token = defaultdict(lambda: {"count": 0, "volume": 0.0, "largest": 0.0})
-    for t in transfers:
-        tok = (t.token_symbol or "ETH").upper()
-        amt = float(t.amount or 0)
-        s = by_token[tok]
-        s["count"] += 1
-        s["volume"] += amt
-        if amt > s["largest"]:
-            s["largest"] = amt
-
-    agg_lines = []
-    for tok, s in by_token.items():
-        agg_lines.append(
-            f"{tok}: {s['count']} transfers, total {s['volume']:.2f} {tok}, "
-            f"largest {s['largest']:.2f} {tok}"
-        )
-    agg_text = "\n".join(agg_lines) or "No meaningful volume."
-
-    sample = transfers[: min(20, len(transfers))]
-    sample_lines = []
-    for t in sample:
-        from_short = (t.from_address or "")[:6] + "..." + (t.from_address or "")[-4:]
-        to_short = (
-            (t.to_address or "")[:6] + "..." + (t.to_address or "")[-4:]
-            if t.to_address
-            else ""
-        )
-        sample_lines.append(
-            f"- {t.amount} {t.token_symbol} from {from_short} to {to_short} (block {t.block_number})"
-        )
-    sample_text = "\n".join(sample_lines)
-
+    stats = _aggregate_by_token(transfers)
+    agg_text = _format_agg_text(stats)
+    sample_text = _format_sample_text(transfers)
     tok_phrase = _token_phrase(token)
     snapshot_size = len(transfers)
 
@@ -127,7 +188,8 @@ def alerts_summary(
     )
 
     user_msg = (
-        f"This snapshot contains {snapshot_size} {tok_phrase} transfers.\n\n"
+        f"This snapshot contains {snapshot_size} {tok_phrase} transfers "
+        f"across {_unique_wallet_count(transfers)} unique wallets.\n\n"
         f"Aggregated stats by token:\n{agg_text}\n\n"
         f"Sample transfers:\n{sample_text}\n\n"
         "In 3–5 sentences, summarize the main patterns, including how ETH vs "
@@ -149,6 +211,7 @@ def alerts_summary(
         summary=summary_text,
         transfer_count=snapshot_size,
     )
+
 
 # -----------------------------
 # /alerts/chat
@@ -174,49 +237,9 @@ def alerts_chat(
             transfer_count=0,
         )
 
-    lines = []
-    for t in transfers:
-        from_short = (t.from_address or "")[:6] + "..." + (t.from_address or "")[-4:]
-        to_short = (t.to_address or "")[:6] + "..." + (t.to_address or "")[-4:] if t.to_address else ""
-        lines.append(
-            f"- {t.amount} {t.token_symbol} from {from_short} to {to_short} (block {t.block_number})"
-        )
-    transfers_text = "\n".join(lines)
-
-    from collections import defaultdict
-
-    by_token = defaultdict(lambda: {"count": 0, "volume": 0.0, "largest": 0.0})
-    for t in transfers:
-        tok = (t.token_symbol or "ETH").upper()
-        amt = float(t.amount or 0)
-        s = by_token[tok]
-        s["count"] += 1
-        s["volume"] += amt
-        if amt > s["largest"]:
-            s["largest"] = amt
-
-    agg_lines = []
-    for tok, s in by_token.items():
-        agg_lines.append(
-            f"{tok}: {s['count']} transfers, total {s['volume']:.2f} {tok}, "
-            f"largest {s['largest']:.2f} {tok}"
-        )
-    agg_text = "\n".join(agg_lines) or "No meaningful volume."
-
-    sample = transfers[: min(20, len(transfers))]
-    sample_lines = []
-    for t in sample:
-        from_short = (t.from_address or "")[:6] + "..." + (t.from_address or "")[-4:]
-        to_short = (
-            (t.to_address or "")[:6] + "..." + (t.to_address or "")[-4:]
-            if t.to_address
-            else ""
-        )
-        sample_lines.append(
-            f"- {t.amount} {t.token_symbol} from {from_short} to {to_short} (block {t.block_number})"
-        )
-    sample_text = "\n".join(sample_lines)
-
+    stats = _aggregate_by_token(transfers)
+    agg_text = _format_agg_text(stats)
+    sample_text = _format_sample_text(transfers)
     tok_phrase = _token_phrase(token)
 
     system_msg = (
@@ -227,8 +250,10 @@ def alerts_chat(
     )
 
     user_msg = (
-        f"Here are recent large {tok_phrase} transfers:\n\n"
-        f"{transfers_text}\n\n"
+        f"Recent large {tok_phrase} transfers "
+        f"({len(transfers)} rows, {_unique_wallet_count(transfers)} unique wallets):\n\n"
+        f"Aggregated stats by token:\n{agg_text}\n\n"
+        f"Sample transfers:\n{sample_text}\n\n"
         f"The user asks: {payload.question}\n\n"
         "Answer in 3–6 sentences."
     )
