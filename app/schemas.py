@@ -1,6 +1,7 @@
-from pydantic import BaseModel
-from typing import Optional, List
 from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
 
 
 class WhaleTransfer(BaseModel):
@@ -22,6 +23,7 @@ class WhaleTransferList(BaseModel):
     count: int
     summary: Optional[str] = None
 
+
 class AlertsSummary(BaseModel):
     summary: str
     transfer_count: int
@@ -42,7 +44,7 @@ class AlertsStats(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    question: str
+    question: str = Field(..., min_length=1, max_length=2000)
 
 
 class ChatResponse(BaseModel):

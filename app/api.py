@@ -1,6 +1,7 @@
 from collections import defaultdict
-from fastapi import APIRouter, Query
 from typing import List, Optional
+
+from fastapi import APIRouter, HTTPException, Query
 from openai import OpenAI
 
 from .schemas import (
@@ -14,8 +15,15 @@ from .schemas import (
 from . import whale_service
 
 
-client = OpenAI()
 router = APIRouter(prefix="/alerts", tags=["alerts"])
+_openai_client: Optional[OpenAI] = None
+
+
+def _get_openai() -> OpenAI:
+    global _openai_client
+    if _openai_client is None:
+        _openai_client = OpenAI()
+    return _openai_client
 
 
 # -----------------------------
@@ -26,6 +34,16 @@ def _filter_by_token(transfers, token: Optional[str]):
         return transfers
     token_upper = token.upper()
     return [t for t in transfers if (t.token_symbol or "").upper() == token_upper]
+
+
+def _load_transfers(
+    *,
+    limit: int,
+    min_amount: float = 0.0,
+    token: Optional[str] = None,
+):
+    transfers = whale_service.fetch_whales(min_amount=min_amount, limit=limit)
+    return _filter_by_token(transfers, token)
 
 
 def _token_phrase(token: Optional[str]) -> str:
@@ -60,7 +78,9 @@ def _aggregate_by_token(transfers) -> List[TokenStat]:
             volume=round(s["volume"], 4),
             largest=round(s["largest"], 4),
         )
-        for tok, s in sorted(by_token.items(), key=lambda kv: kv[1]["volume"], reverse=True)
+        for tok, s in sorted(
+            by_token.items(), key=lambda kv: kv[1]["volume"], reverse=True
+        )
     ]
 
 
@@ -94,21 +114,43 @@ def _format_sample_text(transfers, max_rows: int = 20) -> str:
     return "\n".join(lines)
 
 
+def _ask_llm(
+    *,
+    system_msg: str,
+    user_msg: str,
+    temperature: float = 0.4,
+) -> str:
+    try:
+        chat = _get_openai().chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg},
+            ],
+            temperature=temperature,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"LLM request failed: {exc}",
+        ) from exc
+
+    content = chat.choices[0].message.content
+    if not content:
+        raise HTTPException(status_code=502, detail="LLM returned an empty response.")
+    return content.strip()
+
+
 # -----------------------------
 # /alerts/latest
 # -----------------------------
 @router.get("/latest", response_model=WhaleTransferList)
 def latest_alerts(
-    limit: int = 200,
-    min_amount: float = 100.0,
+    limit: int = Query(200, ge=1, le=1000),
+    min_amount: float = Query(100.0, ge=0),
     token: Optional[str] = None,
 ):
-    transfers = whale_service.fetch_whales(
-        min_amount=min_amount,
-        limit=limit,
-    )
-
-    transfers = _filter_by_token(transfers, token)
+    transfers = _load_transfers(limit=limit, min_amount=min_amount, token=token)
 
     if not transfers:
         return WhaleTransferList(
@@ -134,15 +176,11 @@ def latest_alerts(
 @router.get("/stats", response_model=AlertsStats)
 def alerts_stats(
     limit: int = Query(200, ge=1, le=1000),
-    min_amount: float = 0.0,
+    min_amount: float = Query(0.0, ge=0),
     token: Optional[str] = None,
 ):
     """Structured per-token aggregates without calling an LLM."""
-    transfers = whale_service.fetch_whales(
-        min_amount=min_amount,
-        limit=limit,
-    )
-    transfers = _filter_by_token(transfers, token)
+    transfers = _load_transfers(limit=limit, min_amount=min_amount, token=token)
 
     return AlertsStats(
         transfer_count=len(transfers),
@@ -157,17 +195,13 @@ def alerts_stats(
 # -----------------------------
 @router.get("/summary", response_model=AlertsSummary)
 def alerts_summary(
-    limit: int = 20,
-    min_amount_eth: float = 0.0,
+    limit: int = Query(20, ge=1, le=1000),
+    min_amount_eth: float = Query(0.0, ge=0),
     token: Optional[str] = None,
 ):
-    limit = max(1, min(limit, 1000))
-
-    transfers = whale_service.fetch_whales(
-        min_amount=min_amount_eth,
-        limit=limit,
+    transfers = _load_transfers(
+        limit=limit, min_amount=min_amount_eth, token=token
     )
-    transfers = _filter_by_token(transfers, token)
 
     if not transfers:
         return AlertsSummary(
@@ -176,36 +210,24 @@ def alerts_summary(
         )
 
     stats = _aggregate_by_token(transfers)
-    agg_text = _format_agg_text(stats)
-    sample_text = _format_sample_text(transfers)
-    tok_phrase = _token_phrase(token)
     snapshot_size = len(transfers)
 
-    system_msg = (
-        "You are an on-chain crypto analyst. "
-        "Use the aggregated stats and sample transfers to describe patterns "
-        "across tokens. If evidence is weak, say so."
-    )
-
-    user_msg = (
-        f"This snapshot contains {snapshot_size} {tok_phrase} transfers "
-        f"across {_unique_wallet_count(transfers)} unique wallets.\n\n"
-        f"Aggregated stats by token:\n{agg_text}\n\n"
-        f"Sample transfers:\n{sample_text}\n\n"
-        "In 3–5 sentences, summarize the main patterns, including how ETH vs "
-        "stablecoins vs WBTC behave in this window."
-    )
-
-    chat = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": user_msg},
-        ],
+    summary_text = _ask_llm(
+        system_msg=(
+            "You are an on-chain crypto analyst. "
+            "Use the aggregated stats and sample transfers to describe patterns "
+            "across tokens. If evidence is weak, say so."
+        ),
+        user_msg=(
+            f"This snapshot contains {snapshot_size} {_token_phrase(token)} transfers "
+            f"across {_unique_wallet_count(transfers)} unique wallets.\n\n"
+            f"Aggregated stats by token:\n{_format_agg_text(stats)}\n\n"
+            f"Sample transfers:\n{_format_sample_text(transfers)}\n\n"
+            "In 3–5 sentences, summarize the main patterns, including how ETH vs "
+            "stablecoins vs WBTC behave in this window."
+        ),
         temperature=0.4,
     )
-
-    summary_text = chat.choices[0].message.content.strip()
 
     return AlertsSummary(
         summary=summary_text,
@@ -222,14 +244,11 @@ def alerts_chat(
     limit: int = Query(100, ge=20, le=1000),
     token: Optional[str] = None,
 ):
-    limit = min(limit, 1000)
+    question = (payload.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="question must not be empty.")
 
-    transfers = whale_service.fetch_whales(
-        min_amount=0.0,
-        limit=limit,
-    )
-
-    transfers = _filter_by_token(transfers, token)
+    transfers = _load_transfers(limit=limit, min_amount=0.0, token=token)
 
     if not transfers:
         return ChatResponse(
@@ -238,36 +257,24 @@ def alerts_chat(
         )
 
     stats = _aggregate_by_token(transfers)
-    agg_text = _format_agg_text(stats)
-    sample_text = _format_sample_text(transfers)
-    tok_phrase = _token_phrase(token)
 
-    system_msg = (
-        "You are an on-chain crypto analyst assisting a PM. "
-        "Answer questions based strictly on the flows provided. "
-        "If multiple token types exist, compare them. "
-        "If something is uncertain or speculative, say so explicitly."
-    )
-
-    user_msg = (
-        f"Recent large {tok_phrase} transfers "
-        f"({len(transfers)} rows, {_unique_wallet_count(transfers)} unique wallets):\n\n"
-        f"Aggregated stats by token:\n{agg_text}\n\n"
-        f"Sample transfers:\n{sample_text}\n\n"
-        f"The user asks: {payload.question}\n\n"
-        "Answer in 3–6 sentences."
-    )
-
-    chat = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": user_msg},
-        ],
+    answer_text = _ask_llm(
+        system_msg=(
+            "You are an on-chain crypto analyst assisting a PM. "
+            "Answer questions based strictly on the flows provided. "
+            "If multiple token types exist, compare them. "
+            "If something is uncertain or speculative, say so explicitly."
+        ),
+        user_msg=(
+            f"Recent large {_token_phrase(token)} transfers "
+            f"({len(transfers)} rows, {_unique_wallet_count(transfers)} unique wallets):\n\n"
+            f"Aggregated stats by token:\n{_format_agg_text(stats)}\n\n"
+            f"Sample transfers:\n{_format_sample_text(transfers)}\n\n"
+            f"The user asks: {question}\n\n"
+            "Answer in 3–6 sentences."
+        ),
         temperature=0.5,
     )
-
-    answer_text = chat.choices[0].message.content.strip()
 
     return ChatResponse(
         answer=answer_text,

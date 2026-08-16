@@ -1,5 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Dict, List, Optional, Set
 import os
 import time
 import httpx
@@ -7,42 +8,57 @@ from dotenv import load_dotenv
 
 from .schemas import WhaleTransfer
 
+
 load_dotenv()
 ALCHEMY_API_KEY = os.getenv("ALCHEMY_API_KEY")
+
+TRACKED_ASSETS = frozenset({"ETH", "USDC", "USDT", "WBTC"})
+CACHE_TTL = 30  # seconds
+PROVIDER_LIMIT = 1000
+MAX_ROWS_PER_CATEGORY = 500
+
+_last_fetch_ts: float = 0.0
+_last_fetch_data: List[WhaleTransfer] = []
+
 
 def _get_alchemy_url() -> str:
     if not ALCHEMY_API_KEY:
         raise RuntimeError("ALCHEMY_API_KEY is missing")
     return f"https://eth-mainnet.g.alchemy.com/v2/{ALCHEMY_API_KEY}"
 
-CACHE_TTL = 30  # seconds
-_last_fetch_ts: float = 0.0
-_last_fetch_data: List[WhaleTransfer] = []
+
+def _parse_timestamp(item: Dict) -> Optional[datetime]:
+    metadata = item.get("metadata") or {}
+    raw = metadata.get("blockTimestamp")
+    if not raw:
+        return None
+    try:
+        # Alchemy returns e.g. "2024-01-15T12:34:56.000Z"
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
 
 
 def fetch_whales(limit: int = 400, min_amount: float = 100.0) -> List[WhaleTransfer]:
     """
     High-level function used by the API.
     - Uses a 30s cache so we don't spam Alchemy.
-    - Lets the caller pick limit and min_amount (in *token units*).
+    - Cache stores an unfiltered snapshot; callers filter by min_amount/limit.
     """
     global _last_fetch_ts, _last_fetch_data
 
     now = time.time()
+    limit = max(1, min(limit, PROVIDER_LIMIT))
 
-    if _last_fetch_data and (now - _last_fetch_ts) < CACHE_TTL:
-        filtered = [t for t in _last_fetch_data if t.amount >= min_amount]
-        return filtered[: min(limit, len(filtered))]
+    if not _last_fetch_data or (now - _last_fetch_ts) >= CACHE_TTL:
+        _last_fetch_data = fetch_whale_transfers_from_provider(
+            limit=PROVIDER_LIMIT,
+            min_amount=0.0,
+        )
+        _last_fetch_ts = now
 
-    limit = min(limit, 1000)
-
-    fresh = fetch_whale_transfers_from_provider(limit=limit, min_amount=min_amount)
-
-    _last_fetch_data = fresh
-    _last_fetch_ts = now
-
-    filtered = [t for t in fresh if t.amount >= min_amount]
-    return filtered[: min(limit, len(filtered))]
+    filtered = [t for t in _last_fetch_data if t.amount >= min_amount]
+    return filtered[:limit]
 
 
 def fetch_whale_transfers_from_provider(
@@ -50,15 +66,12 @@ def fetch_whale_transfers_from_provider(
     min_amount: float = 100.0,
 ) -> List[WhaleTransfer]:
     """
-    Fetch large transfers for:
-      - native ETH (external)
-      - ERC-20 tokens (erc20)
-    Then keep only ETH, USDC, USDT, WBTC and apply min_amount.
+    Fetch large transfers for native ETH and ERC-20 tokens,
+    keep only TRACKED_ASSETS, then apply min_amount.
     """
     url = _get_alchemy_url()
 
-    def _call_alchemy(categories: list[str]) -> list[dict]:
-        max_rows_per_category = 500 
+    def _call_alchemy(categories: List[str]) -> List[dict]:
         payload = {
             "jsonrpc": "2.0",
             "id": 1,
@@ -70,28 +83,32 @@ def fetch_whale_transfers_from_provider(
                     "category": categories,
                     "withMetadata": True,
                     "excludeZeroValue": True,
-                    "maxCount": hex(max_rows_per_category),
+                    "maxCount": hex(MAX_ROWS_PER_CATEGORY),
                     "order": "desc",
                 }
             ],
         }
         try:
-            res = httpx.post(url, json=payload, timeout=10)
+            res = httpx.post(url, json=payload, timeout=15.0)
             res.raise_for_status()
+            data = res.json()
         except httpx.HTTPError as e:
             print("Alchemy API error:", e)
             return []
-        data = res.json()
-        return data.get("result", {}).get("transfers", [])
 
-    # 🔹 separate calls
-    raw_eth   = _call_alchemy(["external"])
-    raw_erc20 = _call_alchemy(["erc20"])
+        if "error" in data:
+            print("Alchemy RPC error:", data["error"])
+            return []
 
-    raw_transfers = raw_eth + raw_erc20
+        return data.get("result", {}).get("transfers", []) or []
 
-    TRACKED_ASSETS = {"ETH", "USDC", "USDT", "WBTC"}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        fut_eth = pool.submit(_call_alchemy, ["external"])
+        fut_erc20 = pool.submit(_call_alchemy, ["erc20"])
+        raw_transfers = fut_eth.result() + fut_erc20.result()
+
     transfers: List[WhaleTransfer] = []
+    seen_keys: Set[str] = set()
 
     for item in raw_transfers:
         amount = item.get("value")
@@ -106,7 +123,7 @@ def fetch_whale_transfers_from_provider(
             continue
 
         raw_contract = item.get("rawContract") or {}
-        token_addr = raw_contract.get("address")  
+        token_addr = raw_contract.get("address")
         raw_symbol = item.get("asset")
 
         if token_addr is None:
@@ -117,23 +134,35 @@ def fetch_whale_transfers_from_provider(
         if asset_symbol not in TRACKED_ASSETS:
             continue
 
-        block_hex = item.get("blockNum")
-        block_num = int(block_hex, 16) if block_hex else 0
+        tx_hash = item.get("hash") or ""
+        from_addr = item.get("from") or ""
+        to_addr = item.get("to") or ""
+        dedupe_key = f"{tx_hash}|{asset_symbol}|{from_addr}|{to_addr}|{amount_float}"
+        if not tx_hash or dedupe_key in seen_keys:
+            continue
+        seen_keys.add(dedupe_key)
 
-        wt = WhaleTransfer(
-            tx_hash=item.get("hash", ""),
-            from_address=item.get("from", ""),
-            to_address=item.get("to", ""),
-            token_symbol=asset_symbol,
-            token_address=token_addr,
-            amount=amount_float,
-            usd_value=None,
-            chain="eth",
-            block_number=block_num,
-            timestamp=None,
-            observed_at=datetime.now(timezone.utc),
+        block_hex = item.get("blockNum")
+        try:
+            block_num = int(block_hex, 16) if block_hex else None
+        except (TypeError, ValueError):
+            block_num = None
+
+        transfers.append(
+            WhaleTransfer(
+                tx_hash=tx_hash,
+                from_address=from_addr,
+                to_address=to_addr,
+                token_symbol=asset_symbol,
+                token_address=token_addr,
+                amount=amount_float,
+                usd_value=None,
+                chain="eth",
+                block_number=block_num,
+                timestamp=_parse_timestamp(item),
+                observed_at=datetime.now(timezone.utc),
+            )
         )
-        transfers.append(wt)
 
     transfers.sort(key=lambda t: t.block_number or 0, reverse=True)
-    return transfers[:limit]  
+    return transfers[: max(1, min(limit, PROVIDER_LIMIT))]
