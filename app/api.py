@@ -1,4 +1,5 @@
 from collections import defaultdict
+import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -15,6 +16,7 @@ from .schemas import (
 from . import whale_service
 
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 _openai_client: Optional[OpenAI] = None
 
@@ -26,14 +28,17 @@ def _get_openai() -> OpenAI:
     return _openai_client
 
 
-# -----------------------------
-# Helpers
-# -----------------------------
-def _filter_by_token(transfers, token: Optional[str]):
+def _normalize_token(token: Optional[str]) -> Optional[str]:
     if not token:
-        return transfers
-    token_upper = token.upper()
-    return [t for t in transfers if (t.token_symbol or "").upper() == token_upper]
+        return None
+    token_upper = token.strip().upper()
+    if token_upper not in whale_service.TRACKED_ASSETS:
+        allowed = ", ".join(sorted(whale_service.TRACKED_ASSETS))
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown token '{token}'. Use one of: {allowed}.",
+        )
+    return token_upper
 
 
 def _load_transfers(
@@ -42,8 +47,11 @@ def _load_transfers(
     min_amount: float = 0.0,
     token: Optional[str] = None,
 ):
-    transfers = whale_service.fetch_whales(min_amount=min_amount, limit=limit)
-    return _filter_by_token(transfers, token)
+    return whale_service.fetch_whales(
+        min_amount=min_amount,
+        limit=limit,
+        token=_normalize_token(token),
+    )
 
 
 def _token_phrase(token: Optional[str]) -> str:
@@ -129,11 +137,12 @@ def _ask_llm(
             ],
             temperature=temperature,
         )
-    except Exception as exc:
+    except Exception:
+        logger.exception("LLM request failed")
         raise HTTPException(
             status_code=502,
-            detail=f"LLM request failed: {exc}",
-        ) from exc
+            detail="LLM request failed.",
+        )
 
     content = chat.choices[0].message.content
     if not content:
@@ -141,9 +150,6 @@ def _ask_llm(
     return content.strip()
 
 
-# -----------------------------
-# /alerts/latest
-# -----------------------------
 @router.get("/latest", response_model=WhaleTransferList)
 def latest_alerts(
     limit: int = Query(200, ge=1, le=1000),
@@ -170,9 +176,6 @@ def latest_alerts(
     )
 
 
-# -----------------------------
-# /alerts/stats
-# -----------------------------
 @router.get("/stats", response_model=AlertsStats)
 def alerts_stats(
     limit: int = Query(200, ge=1, le=1000),
@@ -180,28 +183,26 @@ def alerts_stats(
     token: Optional[str] = None,
 ):
     """Structured per-token aggregates without calling an LLM."""
-    transfers = _load_transfers(limit=limit, min_amount=min_amount, token=token)
+    normalized = _normalize_token(token)
+    transfers = _load_transfers(limit=limit, min_amount=min_amount, token=normalized)
 
     return AlertsStats(
         transfer_count=len(transfers),
         unique_wallets=_unique_wallet_count(transfers),
         by_token=_aggregate_by_token(transfers),
-        token_filter=token.upper() if token else None,
+        token_filter=normalized,
     )
 
 
-# -----------------------------
-# /alerts/summary
-# -----------------------------
 @router.get("/summary", response_model=AlertsSummary)
 def alerts_summary(
     limit: int = Query(20, ge=1, le=1000),
-    min_amount_eth: float = Query(0.0, ge=0),
+    min_amount: float = Query(0.0, ge=0),
+    min_amount_eth: Optional[float] = Query(None, ge=0),
     token: Optional[str] = None,
 ):
-    transfers = _load_transfers(
-        limit=limit, min_amount=min_amount_eth, token=token
-    )
+    amount = min_amount_eth if min_amount_eth is not None else min_amount
+    transfers = _load_transfers(limit=limit, min_amount=amount, token=token)
 
     if not transfers:
         return AlertsSummary(
@@ -235,9 +236,6 @@ def alerts_summary(
     )
 
 
-# -----------------------------
-# /alerts/chat
-# -----------------------------
 @router.post("/chat", response_model=ChatResponse)
 def alerts_chat(
     payload: ChatRequest,

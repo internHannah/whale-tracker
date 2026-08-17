@@ -1,6 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 import logging
 import os
 import threading
@@ -23,15 +23,35 @@ PROVIDER_LIMIT = 1000
 MAX_ROWS_PER_CATEGORY = 500
 
 _cache_lock = threading.Lock()
+_http_lock = threading.Lock()
 _last_fetch_ts: float = 0.0
 _last_fetch_data: List[WhaleTransfer] = []
 _last_source: str = "empty"
+_refreshing: bool = False
+_http_client: Optional[httpx.Client] = None
 
 
 def _get_alchemy_url() -> str:
     if not ALCHEMY_API_KEY:
         raise RuntimeError("ALCHEMY_API_KEY is missing")
     return f"https://eth-mainnet.g.alchemy.com/v2/{ALCHEMY_API_KEY}"
+
+
+def _get_http_client() -> httpx.Client:
+    global _http_client
+    if _http_client is None:
+        with _http_lock:
+            if _http_client is None:
+                _http_client = httpx.Client(timeout=15.0)
+    return _http_client
+
+
+def close() -> None:
+    global _http_client
+    with _http_lock:
+        if _http_client is not None:
+            _http_client.close()
+            _http_client = None
 
 
 def _parse_timestamp(item: Dict) -> Optional[datetime]:
@@ -55,6 +75,7 @@ def cache_status() -> dict:
             "cache_age_seconds": age,
             "cache_source": _last_source,
             "cache_ttl_seconds": CACHE_TTL,
+            "refreshing": _refreshing,
         }
 
 
@@ -74,30 +95,38 @@ def _orm_to_schema(row) -> WhaleTransfer:
     )
 
 
+def _identity(t: WhaleTransfer) -> Tuple:
+    return (t.tx_hash, t.token_symbol, t.from_address, t.to_address, t.amount)
+
+
 def save_transfers(transfers: List[WhaleTransfer]) -> int:
-    """Upsert transfers into SQLite. Returns number of newly inserted rows."""
+    """Insert new transfers into SQLite. Returns number of newly inserted rows."""
     if not transfers:
         return 0
 
     from .db import SessionLocal
     from .models import WhaleTransferORM
 
-    inserted = 0
+    tx_hashes = list({t.tx_hash for t in transfers if t.tx_hash})
     db = SessionLocal()
     try:
-        for t in transfers:
-            exists = (
-                db.query(WhaleTransferORM.id)
-                .filter_by(
-                    tx_hash=t.tx_hash,
-                    token_symbol=t.token_symbol,
-                    from_address=t.from_address,
-                    to_address=t.to_address,
-                    amount=t.amount,
-                )
-                .first()
+        existing_rows = (
+            db.query(
+                WhaleTransferORM.tx_hash,
+                WhaleTransferORM.token_symbol,
+                WhaleTransferORM.from_address,
+                WhaleTransferORM.to_address,
+                WhaleTransferORM.amount,
             )
-            if exists:
+            .filter(WhaleTransferORM.tx_hash.in_(tx_hashes))
+            .all()
+        )
+        existing_keys = set(existing_rows)
+
+        inserted = 0
+        for t in transfers:
+            key = _identity(t)
+            if key in existing_keys:
                 continue
             db.add(
                 WhaleTransferORM(
@@ -114,15 +143,20 @@ def save_transfers(transfers: List[WhaleTransfer]) -> int:
                     observed_at=t.observed_at or datetime.now(timezone.utc),
                 )
             )
+            existing_keys.add(key)
             inserted += 1
-        db.commit()
+
+        if inserted:
+            db.commit()
+        else:
+            db.rollback()
+        return inserted
     except Exception:
         db.rollback()
         logger.exception("Failed to persist whale transfers")
         return 0
     finally:
         db.close()
-    return inserted
 
 
 def load_transfers_from_db(limit: int = PROVIDER_LIMIT) -> List[WhaleTransfer]:
@@ -145,50 +179,94 @@ def load_transfers_from_db(limit: int = PROVIDER_LIMIT) -> List[WhaleTransfer]:
         db.close()
 
 
-def fetch_whales(limit: int = 400, min_amount: float = 100.0) -> List[WhaleTransfer]:
+def _slice_transfers(
+    data: List[WhaleTransfer],
+    *,
+    min_amount: float,
+    token: Optional[str],
+    limit: int,
+) -> List[WhaleTransfer]:
+    token_upper = token.upper() if token else None
+    out: List[WhaleTransfer] = []
+    for t in data:
+        if t.amount < min_amount:
+            continue
+        if token_upper and (t.token_symbol or "").upper() != token_upper:
+            continue
+        out.append(t)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def fetch_whales(
+    limit: int = 400,
+    min_amount: float = 100.0,
+    token: Optional[str] = None,
+) -> List[WhaleTransfer]:
     """
     High-level function used by the API.
     - Thread-safe 30s cache of an unfiltered snapshot.
-    - Persists successful Alchemy pulls; falls back to SQLite when needed.
+    - Network/DB work happens outside the lock so requests are not blocked.
+    - Token filter is applied before the limit slice.
     """
-    global _last_fetch_ts, _last_fetch_data, _last_source
+    global _last_fetch_ts, _last_fetch_data, _last_source, _refreshing
 
     now = time.time()
     limit = max(1, min(limit, PROVIDER_LIMIT))
 
     with _cache_lock:
-        if not _last_fetch_data or (now - _last_fetch_ts) >= CACHE_TTL:
-            fresh: List[WhaleTransfer] = []
-            try:
-                fresh = fetch_whale_transfers_from_provider(
-                    limit=PROVIDER_LIMIT,
-                    min_amount=0.0,
-                )
-            except Exception:
-                logger.exception("Alchemy provider fetch failed")
+        cached = list(_last_fetch_data)
+        stale = (not cached) or (now - _last_fetch_ts >= CACHE_TTL)
+        if stale and not _refreshing:
+            _refreshing = True
+            should_refresh = True
+        else:
+            should_refresh = False
 
+    if not should_refresh:
+        return _slice_transfers(
+            cached, min_amount=min_amount, token=token, limit=limit
+        )
+
+    fresh: List[WhaleTransfer] = []
+    source = "stale-cache"
+    try:
+        try:
+            fresh = fetch_whale_transfers_from_provider(
+                limit=PROVIDER_LIMIT,
+                min_amount=0.0,
+            )
+        except Exception:
+            logger.exception("Alchemy provider fetch failed")
+
+        if fresh:
+            source = "alchemy"
+            saved = save_transfers(fresh)
+            if saved:
+                logger.info("Persisted %s new whale transfers", saved)
+        elif not cached:
+            db_rows = load_transfers_from_db(PROVIDER_LIMIT)
+            if db_rows:
+                fresh = db_rows
+                source = "sqlite"
+                logger.warning("Serving whale transfers from SQLite fallback")
+        else:
+            logger.warning("Alchemy returned no rows; continuing with stale cache")
+    finally:
+        with _cache_lock:
             if fresh:
                 _last_fetch_data = fresh
-                _last_fetch_ts = now
-                _last_source = "alchemy"
-                saved = save_transfers(fresh)
-                if saved:
-                    logger.info("Persisted %s new whale transfers", saved)
-            elif not _last_fetch_data:
-                db_rows = load_transfers_from_db(PROVIDER_LIMIT)
-                if db_rows:
-                    _last_fetch_data = db_rows
-                    _last_fetch_ts = now
-                    _last_source = "sqlite"
-                    logger.warning("Serving whale transfers from SQLite fallback")
-            else:
-                # Keep serving stale cache; refresh timestamp to avoid hammering Alchemy.
-                _last_fetch_ts = now
+                _last_source = source
+            elif cached:
                 _last_source = "stale-cache"
-                logger.warning("Alchemy returned no rows; continuing with stale cache")
+            _last_fetch_ts = time.time()
+            _refreshing = False
+            snapshot = list(_last_fetch_data)
 
-        filtered = [t for t in _last_fetch_data if t.amount >= min_amount]
-        return filtered[:limit]
+    return _slice_transfers(
+        snapshot, min_amount=min_amount, token=token, limit=limit
+    )
 
 
 def fetch_whale_transfers_from_provider(
@@ -200,6 +278,7 @@ def fetch_whale_transfers_from_provider(
     keep only TRACKED_ASSETS, then apply min_amount.
     """
     url = _get_alchemy_url()
+    client = _get_http_client()
 
     def _call_alchemy(categories: List[str]) -> List[dict]:
         payload = {
@@ -219,7 +298,7 @@ def fetch_whale_transfers_from_provider(
             ],
         }
         try:
-            res = httpx.post(url, json=payload, timeout=15.0)
+            res = client.post(url, json=payload)
             res.raise_for_status()
             data = res.json()
         except httpx.HTTPError as e:

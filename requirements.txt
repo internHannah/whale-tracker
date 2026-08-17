@@ -2,7 +2,6 @@ fastapi
 uvicorn[standard]
 SQLAlchemy
 pydantic
-apscheduler
 python-dotenv
 httpx
 openai>=1.0.0

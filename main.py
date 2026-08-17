@@ -11,6 +11,10 @@ from app.api import router as alerts_router
 from app.db import init_db
 from app import whale_service
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 logger = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -24,6 +28,7 @@ async def lifespan(_app: FastAPI):
     except Exception:
         logger.exception("Cache warm-up skipped")
     yield
+    whale_service.close()
 
 
 app = FastAPI(
