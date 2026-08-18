@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -48,7 +49,16 @@ def root():
 
 @app.api_route("/health", methods=["GET", "HEAD"], include_in_schema=False)
 def health():
-    return {"status": "ok", **whale_service.cache_status()}
+    cache = whale_service.cache_status()
+    alchemy_configured = bool(os.getenv("ALCHEMY_API_KEY"))
+    openai_configured = bool(os.getenv("OPENAI_API_KEY"))
+    degraded = (not alchemy_configured) or cache.get("cache_size", 0) == 0
+    return {
+        "status": "degraded" if degraded else "ok",
+        "alchemy_configured": alchemy_configured,
+        "openai_configured": openai_configured,
+        **cache,
+    }
 
 
 if __name__ == "__main__":

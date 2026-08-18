@@ -1,5 +1,6 @@
 from collections import defaultdict
 import logging
+import os
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -23,6 +24,11 @@ _openai_client: Optional[OpenAI] = None
 
 def _get_openai() -> OpenAI:
     global _openai_client
+    if not os.getenv("OPENAI_API_KEY"):
+        raise HTTPException(
+            status_code=503,
+            detail="OPENAI_API_KEY is not configured.",
+        )
     if _openai_client is None:
         _openai_client = OpenAI()
     return _openai_client
