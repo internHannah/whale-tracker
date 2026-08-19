@@ -1057,10 +1057,11 @@
 
         const limitSelect = document.getElementById("ai-context-limit");
         const limit = limitSelect ? Number(limitSelect.value) : 200;
+        const query = buildAlertsQuery({ limit, includeMinAmount: true });
 
         try {
-          const res = await fetch(`/alerts/summary?limit=${limit}`);
-          if (!res.ok) throw new Error("HTTP " + res.status);
+          const res = await fetch(`/alerts/summary?${query}`);
+          if (!res.ok) throw new Error(await readErrorMessage(res));
           const data = await res.json();
 
           textEl.textContent = data.summary || "No summary available.";
@@ -1087,7 +1088,7 @@
         } catch (err) {
           console.error(err);
           loadingEl.style.display = "none";
-          errEl.textContent = "Could not load AI summary.";
+          errEl.textContent = err.message || "Could not load AI summary.";
           errEl.style.display = "block";
         }
       }
@@ -1350,6 +1351,7 @@
   const errEl = document.getElementById("chat-error");
   const limitSelect = document.getElementById("ai-context-limit");
   const limit = limitSelect ? Number(limitSelect.value) : 200;
+  const query = buildAlertsQuery({ limit, includeMinAmount: true });
 
   const question = (chatInput.value || "").trim();
   if (!question) return;
@@ -1359,13 +1361,13 @@
   errEl.style.display = "none";
 
   try {
-    const res = await fetch(`/alerts/chat?limit=${limit}`, {
+    const res = await fetch(`/alerts/chat?${query}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question }),
     });
 
-    if (!res.ok) throw new Error("HTTP " + res.status);
+    if (!res.ok) throw new Error(await readErrorMessage(res));
 
     const data = await res.json();
     chatInput.value = "";
@@ -1373,8 +1375,7 @@
     answerEl.style.display = "block";
   } catch (err) {
     console.error(err);
-    errEl.textContent =
-      "Could not get AI answer for this question (check /alerts/chat in your logs).";
+    errEl.textContent = err.message || "Could not get AI answer for this question.";
     errEl.style.display = "block";
   } finally {
     statusEl.style.display = "none";
@@ -1508,6 +1509,7 @@
           (minAmountInput && minAmountInput.value) || 100,
         );
         const paginationEl = document.getElementById("pagination");
+        const query = buildAlertsQuery({ limit: 200, includeMinAmount: true });
 
         errEl.style.display = "none";
 
@@ -1520,14 +1522,10 @@
         }
 
         try {
-          const res = await fetch(`/alerts/latest?limit=200`);
-          if (!res.ok) throw new Error("HTTP " + res.status);
+          const res = await fetch(`/alerts/latest?${query}`);
+          if (!res.ok) throw new Error(await readErrorMessage(res));
           const data = await res.json();
-          const allRows = data.transfers || [];
-
-          const filteredByAmount = allRows.filter(
-            (t) => Number(t.amount || 0) >= minAmount,
-          );
+          const filteredByAmount = data.transfers || [];
 
           const newIds = new Set();
           if (isAutoRefresh && lastSeenIds.size) {
@@ -1545,7 +1543,7 @@
 
           if (currentTransfers.length === 0) {
             loadingEl.textContent =
-              "No large ETH transfers match the current filters.";
+              "No whale transfers match the current filters.";
             updateMetricsCard();
             selectWallet(null);
             return;
@@ -1568,7 +1566,7 @@
           console.error(err);
           if (!isAutoRefresh) {
             loadingEl.style.display = "none";
-            errEl.textContent = "Could not load whale transfers.";
+            errEl.textContent = err.message || "Could not load whale transfers.";
             errEl.style.display = "block";
           }
         } finally {
@@ -1661,6 +1659,44 @@
         });
 
         return set;
+      }
+
+      function getSingleActiveToken() {
+        const tokens = Array.from(getActiveTokenSet());
+        return tokens.length === 1 ? tokens[0] : null;
+      }
+
+      function buildAlertsQuery({ limit, includeMinAmount = false } = {}) {
+        const params = new URLSearchParams();
+        if (limit != null) {
+          params.set("limit", String(limit));
+        }
+
+        const token = getSingleActiveToken();
+        if (token) {
+          params.set("token", token);
+        }
+
+        if (includeMinAmount) {
+          const minAmountInput = document.getElementById("filter-min-amount");
+          const minAmount = Number(
+            (minAmountInput && minAmountInput.value) || 0,
+          );
+          if (!Number.isNaN(minAmount)) {
+            params.set("min_amount", String(minAmount));
+          }
+        }
+
+        return params.toString();
+      }
+
+      async function readErrorMessage(res) {
+        try {
+          const data = await res.json();
+          return data.detail || `HTTP ${res.status}`;
+        } catch (err) {
+          return `HTTP ${res.status}`;
+        }
       }
 
       function getActivePatternSet() {
@@ -2012,6 +2048,7 @@ if (refreshSelect) {
   minAmountInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
+      loadSummary();
       loadWhales();
     }
   });
@@ -2139,7 +2176,12 @@ if (nextBtn) {
             buttons.forEach((b) => b.classList.remove("active"));
             allBtn.classList.add("active");
             currentPage = 1;
-            renderWhaleTable();
+            if (groupSelector === ".filter-token-btn") {
+              loadSummary();
+              loadWhales();
+            } else {
+              renderWhaleTable();
+            }
           });
 
           // Click individual filters (multi-select)
@@ -2157,7 +2199,12 @@ if (nextBtn) {
               }
 
               currentPage = 1;
-              renderWhaleTable();
+              if (groupSelector === ".filter-token-btn") {
+                loadSummary();
+                loadWhales();
+              } else {
+                renderWhaleTable();
+              }
             });
           });
         }

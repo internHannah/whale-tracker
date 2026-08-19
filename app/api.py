@@ -56,7 +56,7 @@ def _load_transfers(
     return whale_service.fetch_whales(
         min_amount=min_amount,
         limit=limit,
-        token=_normalize_token(token),
+        token=token,
     )
 
 
@@ -207,8 +207,9 @@ def alerts_summary(
     min_amount_eth: Optional[float] = Query(None, ge=0),
     token: Optional[str] = None,
 ):
+    normalized = _normalize_token(token)
     amount = min_amount_eth if min_amount_eth is not None else min_amount
-    transfers = _load_transfers(limit=limit, min_amount=amount, token=token)
+    transfers = _load_transfers(limit=limit, min_amount=amount, token=normalized)
 
     if not transfers:
         return AlertsSummary(
@@ -226,7 +227,7 @@ def alerts_summary(
             "across tokens. If evidence is weak, say so."
         ),
         user_msg=(
-            f"This snapshot contains {snapshot_size} {_token_phrase(token)} transfers "
+            f"This snapshot contains {snapshot_size} {_token_phrase(normalized)} transfers "
             f"across {_unique_wallet_count(transfers)} unique wallets.\n\n"
             f"Aggregated stats by token:\n{_format_agg_text(stats)}\n\n"
             f"Sample transfers:\n{_format_sample_text(transfers)}\n\n"
@@ -246,17 +247,19 @@ def alerts_summary(
 def alerts_chat(
     payload: ChatRequest,
     limit: int = Query(100, ge=20, le=1000),
+    min_amount: float = Query(0.0, ge=0),
     token: Optional[str] = None,
 ):
     question = (payload.question or "").strip()
     if not question:
         raise HTTPException(status_code=400, detail="question must not be empty.")
 
-    transfers = _load_transfers(limit=limit, min_amount=0.0, token=token)
+    normalized = _normalize_token(token)
+    transfers = _load_transfers(limit=limit, min_amount=min_amount, token=normalized)
 
     if not transfers:
         return ChatResponse(
-            answer=f"No transfers found for token={token or 'ALL'}, so I cannot analyze flows.",
+            answer=f"No transfers found for token={normalized or 'ALL'}, so I cannot analyze flows.",
             transfer_count=0,
         )
 
@@ -270,7 +273,7 @@ def alerts_chat(
             "If something is uncertain or speculative, say so explicitly."
         ),
         user_msg=(
-            f"Recent large {_token_phrase(token)} transfers "
+            f"Recent large {_token_phrase(normalized)} transfers "
             f"({len(transfers)} rows, {_unique_wallet_count(transfers)} unique wallets):\n\n"
             f"Aggregated stats by token:\n{_format_agg_text(stats)}\n\n"
             f"Sample transfers:\n{_format_sample_text(transfers)}\n\n"
