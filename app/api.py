@@ -1,7 +1,9 @@
 from collections import defaultdict
 import logging
 import os
-from typing import List, Optional
+import threading
+import time
+from typing import Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, Query
 from openai import OpenAI
@@ -20,6 +22,10 @@ from . import whale_service
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 _openai_client: Optional[OpenAI] = None
+
+SUMMARY_CACHE_TTL = 60  # seconds
+_summary_cache_lock = threading.Lock()
+_summary_cache: Dict[Tuple, Tuple[float, str, int]] = {}
 
 
 def _get_openai() -> OpenAI:
@@ -56,8 +62,29 @@ def _load_transfers(
     return whale_service.fetch_whales(
         min_amount=min_amount,
         limit=limit,
-        token=token,
+        token=_normalize_token(token),
     )
+
+
+def _summary_cache_get(key: Tuple) -> Optional[Tuple[str, int]]:
+    now = time.time()
+    with _summary_cache_lock:
+        entry = _summary_cache.get(key)
+        if not entry:
+            return None
+        ts, text, count = entry
+        if now - ts > SUMMARY_CACHE_TTL:
+            _summary_cache.pop(key, None)
+            return None
+        return text, count
+
+
+def _summary_cache_set(key: Tuple, text: str, count: int) -> None:
+    with _summary_cache_lock:
+        _summary_cache[key] = (time.time(), text, count)
+        if len(_summary_cache) > 32:
+            oldest = min(_summary_cache.items(), key=lambda item: item[1][0])[0]
+            _summary_cache.pop(oldest, None)
 
 
 def _token_phrase(token: Optional[str]) -> str:
@@ -162,13 +189,14 @@ def latest_alerts(
     min_amount: float = Query(100.0, ge=0),
     token: Optional[str] = None,
 ):
-    transfers = _load_transfers(limit=limit, min_amount=min_amount, token=token)
+    normalized = _normalize_token(token)
+    transfers = _load_transfers(limit=limit, min_amount=min_amount, token=normalized)
 
     if not transfers:
         return WhaleTransferList(
             transfers=[],
             count=0,
-            summary=f"No whale transfers found for token={token or 'ALL'}.",
+            summary=f"No whale transfers found for token={normalized or 'ALL'}.",
         )
 
     return WhaleTransferList(
@@ -176,7 +204,7 @@ def latest_alerts(
         count=len(transfers),
         summary=(
             f"Showing up to {len(transfers)} transfers"
-            + (f" in {token.upper()}" if token else "")
+            + (f" in {normalized}" if normalized else "")
             + f" (min_amount={min_amount}, limit={limit})."
         ),
     )
@@ -209,11 +237,18 @@ def alerts_summary(
 ):
     normalized = _normalize_token(token)
     amount = min_amount_eth if min_amount_eth is not None else min_amount
+    cache_key = (limit, amount, normalized)
+
+    cached = _summary_cache_get(cache_key)
+    if cached:
+        summary_text, transfer_count = cached
+        return AlertsSummary(summary=summary_text, transfer_count=transfer_count)
+
     transfers = _load_transfers(limit=limit, min_amount=amount, token=normalized)
 
     if not transfers:
         return AlertsSummary(
-            summary=f"No recent transfers found for {token or 'this slice'}.",
+            summary=f"No recent transfers found for {normalized or 'this slice'}.",
             transfer_count=0,
         )
 
@@ -236,6 +271,7 @@ def alerts_summary(
         ),
         temperature=0.4,
     )
+    _summary_cache_set(cache_key, summary_text, snapshot_size)
 
     return AlertsSummary(
         summary=summary_text,

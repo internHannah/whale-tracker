@@ -1014,6 +1014,9 @@
       let lastNewIds = new Set();
       let isAutoRefreshing = false;
       let lastSeenIds = new Set();
+      let whalesAbortController = null;
+      let summaryAbortController = null;
+      let minAmountDebounceTimer = null;
 
       function shortenAddress(addr) {
         if (!addr || addr.length < 10) return addr || "";
@@ -1059,8 +1062,15 @@
         const limit = limitSelect ? Number(limitSelect.value) : 200;
         const query = buildAlertsQuery({ limit, includeMinAmount: true });
 
+        if (summaryAbortController) {
+          summaryAbortController.abort();
+        }
+        summaryAbortController = new AbortController();
+
         try {
-          const res = await fetch(`/alerts/summary?${query}`);
+          const res = await fetch(`/alerts/summary?${query}`, {
+            signal: summaryAbortController.signal,
+          });
           if (!res.ok) throw new Error(await readErrorMessage(res));
           const data = await res.json();
 
@@ -1086,6 +1096,7 @@
             reportMeta.style.display = "block";
           }
         } catch (err) {
+          if (err.name === "AbortError") return;
           console.error(err);
           loadingEl.style.display = "none";
           errEl.textContent = err.message || "Could not load AI summary.";
@@ -1504,10 +1515,6 @@
         const tableEl = document.getElementById("whale-table");
         const tbodyEl = document.getElementById("whale-tbody");
         const errEl = document.getElementById("table-error");
-        const minAmountInput = document.getElementById("filter-min-amount");
-        const minAmount = Number(
-          (minAmountInput && minAmountInput.value) || 100,
-        );
         const paginationEl = document.getElementById("pagination");
         const query = buildAlertsQuery({ limit: 200, includeMinAmount: true });
 
@@ -1521,8 +1528,15 @@
           if (paginationEl) paginationEl.style.display = "none";
         }
 
+        if (whalesAbortController) {
+          whalesAbortController.abort();
+        }
+        whalesAbortController = new AbortController();
+
         try {
-          const res = await fetch(`/alerts/latest?${query}`);
+          const res = await fetch(`/alerts/latest?${query}`, {
+            signal: whalesAbortController.signal,
+          });
           if (!res.ok) throw new Error(await readErrorMessage(res));
           const data = await res.json();
           const filteredByAmount = data.transfers || [];
@@ -1563,6 +1577,7 @@
           updateMetricsCard();
           renderWhaleTable();
         } catch (err) {
+          if (err.name === "AbortError") return;
           console.error(err);
           if (!isAutoRefresh) {
             loadingEl.style.display = "none";
@@ -2045,14 +2060,29 @@ if (refreshSelect) {
         const nextBtn = document.getElementById("page-next");
 
         if (minAmountInput) {
-  minAmountInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      loadSummary();
-      loadWhales();
-    }
-  });
-}
+          const reloadFromMinAmount = () => {
+            loadSummary();
+            loadWhales();
+          };
+
+          minAmountInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (minAmountDebounceTimer) {
+                clearTimeout(minAmountDebounceTimer);
+                minAmountDebounceTimer = null;
+              }
+              reloadFromMinAmount();
+            }
+          });
+
+          minAmountInput.addEventListener("input", () => {
+            if (minAmountDebounceTimer) {
+              clearTimeout(minAmountDebounceTimer);
+            }
+            minAmountDebounceTimer = setTimeout(reloadFromMinAmount, 400);
+          });
+        }
 if (patternSelect) {
   patternSelect.addEventListener("change", () => {
     currentPage = 1;
