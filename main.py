@@ -5,7 +5,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import router as alerts_router
@@ -44,7 +44,10 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 @app.get("/", include_in_schema=False)
 def root():
-    return FileResponse(STATIC_DIR / "index.html")
+    return FileResponse(
+        STATIC_DIR / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.api_route("/health", methods=["GET", "HEAD"], include_in_schema=False)
@@ -53,12 +56,13 @@ def health():
     alchemy_configured = bool(os.getenv("ALCHEMY_API_KEY"))
     openai_configured = bool(os.getenv("OPENAI_API_KEY"))
     degraded = (not alchemy_configured) or cache.get("cache_size", 0) == 0
-    return {
+    payload = {
         "status": "degraded" if degraded else "ok",
         "alchemy_configured": alchemy_configured,
         "openai_configured": openai_configured,
         **cache,
     }
+    return JSONResponse(payload, status_code=503 if degraded else 200)
 
 
 if __name__ == "__main__":

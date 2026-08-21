@@ -21,6 +21,9 @@ TRACKED_ASSETS = frozenset({"ETH", "USDC", "USDT", "WBTC"})
 CACHE_TTL = 30  # seconds
 PROVIDER_LIMIT = 1000
 MAX_ROWS_PER_CATEGORY = 500
+# ~2 days of Ethereum blocks keeps responses recent without scanning from genesis.
+BLOCK_LOOKBACK = 15_000
+
 
 _cache_lock = threading.Lock()
 _http_lock = threading.Lock()
@@ -32,9 +35,10 @@ _http_client: Optional[httpx.Client] = None
 
 
 def _get_alchemy_url() -> str:
-    if not ALCHEMY_API_KEY:
+    api_key = os.getenv("ALCHEMY_API_KEY") or ALCHEMY_API_KEY
+    if not api_key:
         raise RuntimeError("ALCHEMY_API_KEY is missing")
-    return f"https://eth-mainnet.g.alchemy.com/v2/{ALCHEMY_API_KEY}"
+    return f"https://eth-mainnet.g.alchemy.com/v2/{api_key}"
 
 
 def _get_http_client() -> httpx.Client:
@@ -280,33 +284,52 @@ def fetch_whale_transfers_from_provider(
     url = _get_alchemy_url()
     client = _get_http_client()
 
-    def _call_alchemy(categories: List[str]) -> List[dict]:
+    def _rpc(method: str, params: list) -> dict:
         payload = {
             "jsonrpc": "2.0",
             "id": 1,
-            "method": "alchemy_getAssetTransfers",
-            "params": [
-                {
-                    "fromBlock": "0x0",
-                    "toBlock": "latest",
-                    "category": categories,
-                    "withMetadata": True,
-                    "excludeZeroValue": True,
-                    "maxCount": hex(MAX_ROWS_PER_CATEGORY),
-                    "order": "desc",
-                }
-            ],
+            "method": method,
+            "params": params,
         }
+        res = client.post(url, json=payload)
+        res.raise_for_status()
+        data = res.json()
+        if "error" in data:
+            raise RuntimeError(f"Alchemy RPC error: {data['error']}")
+        return data
+
+    def _from_block() -> str:
         try:
-            res = client.post(url, json=payload)
-            res.raise_for_status()
-            data = res.json()
+            data = _rpc("eth_blockNumber", [])
+            latest = int(data.get("result", "0x0"), 16)
+            return hex(max(0, latest - BLOCK_LOOKBACK))
+        except Exception as e:
+            logger.warning("Could not resolve latest block; falling back to 0x0: %s", e)
+            return "0x0"
+
+    from_block = _from_block()
+
+    def _call_alchemy(categories: List[str]) -> List[dict]:
+        try:
+            data = _rpc(
+                "alchemy_getAssetTransfers",
+                [
+                    {
+                        "fromBlock": from_block,
+                        "toBlock": "latest",
+                        "category": categories,
+                        "withMetadata": True,
+                        "excludeZeroValue": True,
+                        "maxCount": hex(MAX_ROWS_PER_CATEGORY),
+                        "order": "desc",
+                    }
+                ],
+            )
         except httpx.HTTPError as e:
             logger.warning("Alchemy API error: %s", e)
             return []
-
-        if "error" in data:
-            logger.warning("Alchemy RPC error: %s", data["error"])
+        except RuntimeError as e:
+            logger.warning("%s", e)
             return []
 
         return data.get("result", {}).get("transfers", []) or []

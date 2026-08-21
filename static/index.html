@@ -2034,6 +2034,8 @@ function applyRefreshSetting(seconds) {
 
   console.log("Live refresh set to", s, "seconds");
   refreshIntervalId = setInterval(() => {
+    if (isAutoRefreshing) return;
+    isAutoRefreshing = true;
     loadWhales(true);
   }, s * 1000);
 }
